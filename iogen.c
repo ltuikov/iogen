@@ -9,7 +9,37 @@ static struct prog_opts {
 	int	num_threads;
 	unsigned long	min_io;
 	unsigned long	max_io;
+	unsigned long	min_span;
+	unsigned long	max_span;
 } prog_opts;
+
+static int get_ulong_value(char *str, unsigned long *val)
+{
+	char *end;
+
+	*val = strtoul(str, &end, 0);
+	if (end == str)
+		return -1;
+	else if (*end == ' ' || *end == '\0')
+		return 0;
+	else {
+		switch (tolower(*end)) {
+		case 'k':
+			*val *= 1024;
+			break;
+		case 'm':
+			*val *= 1024*1024;
+			break;
+		case 'g':
+			*val *= 1024*1024*1024;
+			break;
+		default:
+			return -1;
+		}
+	}
+
+	return 0;
+}
 
 /* ---------- Get program arguments ---------- */
 
@@ -47,32 +77,16 @@ int get_num_threads(char *value, void *_opts)
 	return 0;
 }
 
+
 int get_min_io(char *value, void *_opts)
 {
 	struct prog_opts *opts = _opts;
-	char *end;
+	int res;
 
-	opts->min_io = strtoul(value, &end, 0);
-	if (end == value) {
+	res = get_ulong_value(value, &opts->min_io);
+	if (res == -1) {
 		fprintf(stderr, "Incorrect min_io: %s\n", value);
 		return -1;
-	} else if (*end == ' ' || *end == '\0') {
-		return 0;
-	} else {
-		switch (tolower(*end)) {
-		case 'k':
-			opts->min_io *= 1024;
-			break;
-		case 'm':
-			opts->min_io *= 1024*1024;
-			break;
-		case 'g':
-			opts->min_io *= 1024*1024*1024;
-			break;
-		default:
-			fprintf(stderr, "Incorrect min_io: %s\n", value);
-			return -1;
-		}
 	}
 
 	return 0;
@@ -81,29 +95,40 @@ int get_min_io(char *value, void *_opts)
 int get_max_io(char *value, void *_opts)
 {
 	struct prog_opts *opts = _opts;
-	char *end;
+	int res;
 
-	opts->max_io = strtoul(value, &end, 0);
-	if (end == value) {
+	res = get_ulong_value(value, &opts->max_io);
+	if (res == -1) {
 		fprintf(stderr, "Incorrect max_io: %s\n", value);
 		return -1;
-	} else if (*end == ' ' || *end == '\0') {
-		return 0;
-	} else {
-		switch (tolower(*end)) {
-		case 'k':
-			opts->max_io *= 1024;
-			break;
-		case 'm':
-			opts->max_io *= 1024*1024;
-			break;
-		case 'g':
-			opts->max_io *= 1024*1024*1024;
-			break;
-		default:
-			fprintf(stderr, "Incorrect max_io: %s\n", value);
-			return -1;
-		}
+	}
+
+	return 0;
+}
+
+int get_min_span(char *value, void *_opts)
+{
+	struct prog_opts *opts = _opts;
+	int res;
+
+	res = get_ulong_value(value, &opts->min_span);
+	if (res == -1) {
+		fprintf(stderr, "Incorrect min_span: %s\n", value);
+		return -1;
+	}
+
+	return 0;
+}
+
+int get_max_span(char *value, void *_opts)
+{
+	struct prog_opts *opts = _opts;
+	int res;
+
+	res = get_ulong_value(value, &opts->max_span);
+	if (res == -1) {
+		fprintf(stderr, "Incorrect max_span: %s\n", value);
+		return -1;
 	}
 
 	return 0;
@@ -119,7 +144,9 @@ const struct clparse_opt cmd_opts[] = {
 	{ '\0', "log-only", 0, set_log_only, "Generate logs only" },
 	{ '\0', "threads", 1, get_num_threads, "Number of IO threads" },
 	{ '\0', "min-io", 1, get_min_io, "Minimum IO size" },
-	{ '\0', "max-io", 1, get_max_io, "Maximum IO size" }
+	{ '\0', "max-io", 1, get_max_io, "Maximum IO size" },
+	{ '\0', "max-span", 1, get_max_span, "Maximum span" },
+	{ '\0', "min-span", 1, get_min_span, "Minimum span" },
 };
 
 #define NUM_OPTIONS	(sizeof(cmd_opts)/sizeof(cmd_opts[0]))
