@@ -11,6 +11,8 @@ static struct prog_opts {
 	unsigned long	max_io;
 	unsigned long	min_span;
 	unsigned long	max_span;
+	int	num_devices;
+	char	**devices;
 } prog_opts;
 
 static int get_ulong_value(char *str, unsigned long *val)
@@ -136,6 +138,20 @@ int get_max_span(char *value, void *_opts)
 
 int get_devices(int index_last, int argc, char *argv[])
 {
+	int num_dev = argc - index_last;
+	int i;
+
+	prog_opts.devices = malloc(num_dev * sizeof(char *));
+	if (!prog_opts.devices) {
+		fprintf(stderr, "Out of memory\n");
+		exit(1);
+	}
+
+	for (i = 0; i < num_dev; i++)
+		prog_opts.devices[i] = argv[i+index_last];
+
+	prog_opts.num_devices = num_dev;
+
 	return 0;
 }
 
@@ -171,6 +187,9 @@ int main(int argc, char *argv[])
 	res = get_devices(index_last, argc, argv);
 	if (res)
 		exit(1);
+
+	for (res = 0; res < prog_opts.num_devices; res++)
+		printf("Device%d: %s\n", res, prog_opts.devices[res]);
 
 	return 0;
 }
