@@ -1,5 +1,6 @@
 #include <sys/types.h>
 #include <unistd.h>
+#include <wait.h>
 #include <errno.h>
 
 #include <stdio.h>
@@ -223,7 +224,7 @@ int get_rw_op(char *value, void *_opts)
 const struct clparse_opt cmd_opts[] = {
 	{ '\0', "seed", 1, get_seed, "Initial random seed" },
 	{ '\0', "log-only", 0, set_log_only, "Generate logs only" },
-	{ '\0', "threads", 1, get_num_threads, "Number of IO threads" },
+	{ '\0', "num-threads", 1, get_num_threads, "Number of IO threads" },
 	{ '\0', "min-io", 1, get_min_io, "Minimum IO size" },
 	{ '\0', "max-io", 1, get_max_io, "Maximum IO size" },
 	{ '\0', "max-span", 1, get_max_span, "Maximum span" },
@@ -249,7 +250,7 @@ int do_thread(struct thread_info *thread)
 	}
 	setvbuf(fp, NULL, _IONBF, 1);
 
-	fprintf(fp, "Thread: pid: %d, index: %d\n", getpid(), thread->index);
+	fprintf(fp, "Thread: pid: %d\n", getpid());
 	fprintf(fp, "Seed: %u\n", thread->seed);
 	fprintf(fp, "Log only: %d\n", thread->log_only);
 	fprintf(fp, "Min io: %llu\n", thread->min_io);
@@ -343,8 +344,25 @@ int main(int argc, char *argv[])
 			do_thread(&thread[i]);
 		} else {
 			thread[i].pid = pid;
+			fprintf(fp, "Thread %d\n", pid);
 		}
 	}
+
+	do {
+		int	status;
+		pid_t	pid;
+
+		pid = wait(&status);
+
+		if (WIFSIGNALED(status)) {
+			fprintf(fp, "Thread %d terminated by signal %d, "
+				"status %d\n", pid, WTERMSIG(status),
+				WEXITSTATUS(status));
+		} else {
+			fprintf(fp, "Thread %d exited with status %d\n", pid,
+				WEXITSTATUS(status));
+		}
+	} while (--prog_opts.num_threads > 0);
 
 	fclose(fp);
 	free(thread);
