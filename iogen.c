@@ -237,6 +237,30 @@ const struct clparse_opt cmd_opts[] = {
 
 int do_thread(struct thread_info *thread)
 {
+	FILE *fp;
+	char thread_name[255];
+
+	sprintf(thread_name, "/tmp/iogen_thread.%d", getpid());
+	fp = fopen(thread_name, "w+");
+	if (fp == NULL) {
+		fprintf(stderr, "Couldn't open %s: %s\n",
+			thread_name, strerror(errno));
+		exit(1);
+	}
+	setvbuf(fp, NULL, _IONBF, 1);
+
+	fprintf(fp, "Thread: pid: %d, index: %d\n", getpid(), thread->index);
+	fprintf(fp, "Seed: %u\n", thread->seed);
+	fprintf(fp, "Log only: %d\n", thread->log_only);
+	fprintf(fp, "Min io: %llu\n", thread->min_io);
+	fprintf(fp, "Max io: %llu\n", thread->max_io);
+	fprintf(fp, "Min span: %llu\n", thread->min_span);
+	fprintf(fp, "Max span: %llu\n", thread->max_span);
+	fprintf(fp, "rw: %s\n", thread->rw == READ ? "READ" :
+		thread->rw == WRITE ? "WRITE" : "RW");
+	fprintf(fp, "Device: %s\n", thread->device);
+
+	fclose(fp);
 	exit(0);
 }
 
