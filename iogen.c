@@ -20,8 +20,9 @@ struct thread_info {
 	int	index;
 	FILE	*fp;		  /* log output */
 
-	unsigned int seed;
-	int	dry_run;
+	unsigned int	seed;
+	unsigned	dry_run;
+	unsigned	no_log;
 	unsigned long long min_io;
 	unsigned long long max_io;
 	unsigned long long min_span;
@@ -43,6 +44,7 @@ static struct prog_opts {
 	int	seed_set;
 	unsigned int	seed;
 	unsigned	dry_run;
+	unsigned	no_log;
 	unsigned	num_threads;
 	unsigned long long min_io;
 	unsigned long long max_io;
@@ -56,6 +58,7 @@ static struct prog_opts {
 	.seed_set = 0,
 	.seed = 0,
 	.dry_run = 0,
+	.no_log = 0,
 	.num_threads = 1,
 	.min_io = MIN_IO_DEFAULT,
 	.max_io = MAX_IO_DEFAULT,
@@ -116,6 +119,7 @@ int set_dry_run(char *value, void *_opts)
 	struct prog_opts *opts = _opts;
 
 	opts->dry_run = 1;
+
 	return 0;
 }
 
@@ -245,9 +249,19 @@ int get_num_ios(char *value, void *_opts)
 	return 0;
 }
 
+int set_no_log(char *value, void *_opts)
+{
+	struct prog_opts *opts = _opts;
+
+	opts->no_log = 1;
+
+	return 0;
+}
+
 const struct clparse_opt cmd_opts[] = {
 	{ '\0', "seed", 1, get_seed, "Initial random seed" },
 	{ '\0', "dry-run", 0, set_dry_run, "Do not actually do IO" },
+	{ '\0', "no-log", 0, set_no_log, "Do not print IO ops log" },
 	{ '\0', "num-threads", 1, get_num_threads, "Number of IO threads" },
 	{ '\0', "min-io", 1, get_min_io, "Minimum IO size (default 512)" },
 	{ '\0', "max-io", 1, get_max_io, "Maximum IO size (default 128 KiB)" },
@@ -314,9 +328,11 @@ int do_io_op(struct thread_info *thread)
 			res = write(thread->fd, buf, count);
 	}
 
-	fprintf(thread->fp, "Result: %6d, rw: %-5s, offs: %16lu, count: %6lu\n",
-		res, rw == READ ? "READ" : rw == WRITE ? "WRITE" : "RW",
-		start, count);
+	if (!thread->no_log) {
+		fprintf(thread->fp, "Result: %6d, rw: %-5s, offs: %16lu, count: %6lu\n",
+			res, rw == READ ? "READ" : rw == WRITE ? "WRITE" : "RW",
+			start, count);
+	}
 
 	free(buf);
 
@@ -341,6 +357,7 @@ int do_thread(struct thread_info *thread)
 	fprintf(fp, "Thread: pid: %d\n", getpid());
 	fprintf(fp, "Seed: %u\n", thread->seed);
 	fprintf(fp, "Dry run: %d\n", thread->dry_run);
+	fprintf(fp, "No log: %s\n", thread->no_log ? "yes" : "log");
 	fprintf(fp, "Min io: %llu\n", thread->min_io);
 	fprintf(fp, "Max io: %llu\n", thread->max_io);
 	fprintf(fp, "Min span: %llu\n", thread->min_span);
@@ -439,6 +456,7 @@ int main(int argc, char *argv[])
 
 	fprintf(fp, "Seed: %u\n", prog_opts.seed);
 	fprintf(fp, "Dry run: %s\n", prog_opts.dry_run ? "yes" : "no");
+	fprintf(fp, "No log: %s\n", prog_opts.no_log ? "yes" : "log");
 	fprintf(fp, "Num threads: %d\n", prog_opts.num_threads);
 	fprintf(fp, "Min io: %llu\n", prog_opts.min_io);
 	fprintf(fp, "Max io: %llu\n", prog_opts.max_io);
@@ -457,6 +475,7 @@ int main(int argc, char *argv[])
 		thread[i].index = i;
 		thread[i].seed = rand();
 		thread[i].dry_run = prog_opts.dry_run;
+		thread[i].no_log = prog_opts.no_log;
 		thread[i].min_io = prog_opts.min_io;
 		thread[i].max_io = prog_opts.max_io;
 		thread[i].min_span = prog_opts.min_span;
