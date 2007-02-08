@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <wait.h>
 #include <errno.h>
+#include <signal.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -472,6 +473,10 @@ int main(int argc, char *argv[])
 			fprintf(fp, "Thread %d\n", pid);
 		}
 	}
+
+	/* When the children quit we report their status,
+	 * then we quit too. */
+	signal(SIGINT, SIG_IGN);
 
 	do {
 		int	status;
