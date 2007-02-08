@@ -276,7 +276,7 @@ const struct clparse_opt cmd_opts[] = {
 
 /* ---------- Thread ---------- */
 
-#define RANDOM(_A, _B)	((_A)+(unsigned long long)(((_B)-(_A)+1)*(rand()/(RAND_MAX+1.0))))
+#define RANDOM(_A, _B)	((_A)+(unsigned long long)(((_B)-(_A)+1)*drand48()))
 
 int do_io_op(struct thread_info *thread)
 {
@@ -353,6 +353,7 @@ int do_thread(struct thread_info *thread)
 	}
 	setvbuf(fp, NULL, _IONBF, 1);
 	thread->fp = fp;
+	srand48(thread->seed);
 
 	fprintf(fp, "Thread: pid: %d\n", getpid());
 	fprintf(fp, "Seed: %u\n", thread->seed);
@@ -443,7 +444,7 @@ int main(int argc, char *argv[])
 
 	if (!prog_opts.seed_set)
 		prog_opts.seed = rand();
-	srand(prog_opts.seed);
+	srand48(prog_opts.seed);
 
 	sprintf(parent_name, "/tmp/iogen.%d", getpid());
 	fp = fopen(parent_name, "w+");
