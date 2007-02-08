@@ -1,7 +1,7 @@
 PROG=iogen
 SOURCES=iogen.c
 
-CFLAGS=-Wall -static -I../clparse -L../clparse
+CFLAGS=-g -Wall -static -I../clparse -L../clparse
 LIBS=../clparse/clparse.o
 
 .PHONY: clean

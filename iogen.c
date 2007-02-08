@@ -16,34 +16,51 @@ struct thread_info {
 
 	unsigned int seed;
 	int	log_only;
-	unsigned long	min_io;
-	unsigned long	max_io;
-	unsigned long	min_span;
-	unsigned long	max_span;
+	unsigned long long min_io;
+	unsigned long long max_io;
+	unsigned long long min_span;
+	unsigned long long max_span;
 	rw_t	rw;
 
 	char *device;
 };
 
+/* ---------- Get program arguments ---------- */
+
+#define MAX_IO_DEFAULT		(128*1024*1024)
+#define MAX_SPAN_DEFAULT	(1*1024*1024*1024)
+
 static struct prog_opts {
 	int	seed_set;
 	unsigned int	seed;
-	int	log_only;
-	int	num_threads;
-	unsigned long	min_io;
-	unsigned long	max_io;
-	unsigned long	min_span;
-	unsigned long	max_span;
+	unsigned	log_only;
+	unsigned	num_threads;
+	unsigned long long min_io;
+	unsigned long long max_io;
+	unsigned long long min_span;
+	unsigned long long max_span;
 	rw_t	rw;
 	int	num_devices;
 	char	**devices;
-} prog_opts;
-
-static int get_ulong_value(char *str, unsigned long *val)
+} prog_opts = {
+	.seed_set = 0,
+	.seed = 0,
+	.log_only = 0,
+	.num_threads = 1,
+	.min_io = 0,
+	.max_io = MAX_IO_DEFAULT,
+	.min_span = 0,
+	.max_span = MAX_SPAN_DEFAULT,
+	.rw = RW,
+	.num_devices = 0,
+	.devices = NULL,
+};
+	
+static int get_ull_value(char *str, unsigned long long *val)
 {
 	char *end;
 
-	*val = strtoul(str, &end, 0);
+	*val = strtoull(str, &end, 0);
 	if (end == str)
 		return -1;
 	else if (*end == ' ' || *end == '\0')
@@ -66,8 +83,6 @@ static int get_ulong_value(char *str, unsigned long *val)
 
 	return 0;
 }
-
-/* ---------- Get program arguments ---------- */
 
 int get_seed(char *value, void *_opts)
 {
@@ -112,7 +127,7 @@ int get_min_io(char *value, void *_opts)
 	struct prog_opts *opts = _opts;
 	int res;
 
-	res = get_ulong_value(value, &opts->min_io);
+	res = get_ull_value(value, &opts->min_io);
 	if (res == -1) {
 		fprintf(stderr, "Incorrect min_io: %s\n", value);
 		return -1;
@@ -126,7 +141,7 @@ int get_max_io(char *value, void *_opts)
 	struct prog_opts *opts = _opts;
 	int res;
 
-	res = get_ulong_value(value, &opts->max_io);
+	res = get_ull_value(value, &opts->max_io);
 	if (res == -1) {
 		fprintf(stderr, "Incorrect max_io: %s\n", value);
 		return -1;
@@ -140,7 +155,7 @@ int get_min_span(char *value, void *_opts)
 	struct prog_opts *opts = _opts;
 	int res;
 
-	res = get_ulong_value(value, &opts->min_span);
+	res = get_ull_value(value, &opts->min_span);
 	if (res == -1) {
 		fprintf(stderr, "Incorrect min_span: %s\n", value);
 		return -1;
@@ -154,7 +169,7 @@ int get_max_span(char *value, void *_opts)
 	struct prog_opts *opts = _opts;
 	int res;
 
-	res = get_ulong_value(value, &opts->max_span);
+	res = get_ull_value(value, &opts->max_span);
 	if (res == -1) {
 		fprintf(stderr, "Incorrect max_span: %s\n", value);
 		return -1;
@@ -218,6 +233,15 @@ const struct clparse_opt cmd_opts[] = {
 
 #define NUM_OPTIONS	(sizeof(cmd_opts)/sizeof(cmd_opts[0]))
 
+/* ---------- Thread ---------- */
+
+int do_thread(struct thread_info *thread)
+{
+	exit(0);
+}
+
+/* ---------- Main program ---------- */
+
 int main(int argc, char *argv[])
 {
 	int res, i;
@@ -242,6 +266,9 @@ int main(int argc, char *argv[])
 	if (res)
 		exit(1);
 
+	if (prog_opts.num_threads == 0)
+		prog_opts.num_threads = 1;
+
 	thread = malloc(prog_opts.num_threads * sizeof(*thread));
 	if (!thread) {
 		fprintf(stderr, "Out of memory\n");
@@ -259,6 +286,20 @@ int main(int argc, char *argv[])
 			parent_name, strerror(errno));
 		exit(1);
 	}
+	setvbuf(fp, NULL, _IONBF, 1);
+
+	fprintf(fp, "Seed: %u\n", prog_opts.seed);
+	fprintf(fp, "Log only: %s\n", prog_opts.log_only ? "yes" : "no");
+	fprintf(fp, "Num threads: %d\n", prog_opts.num_threads);
+	fprintf(fp, "Min io: %llu\n", prog_opts.min_io);
+	fprintf(fp, "Max io: %llu\n", prog_opts.max_io);
+	fprintf(fp, "Min span: %llu\n", prog_opts.min_span);
+	fprintf(fp, "Max span: %llu\n", prog_opts.max_span);
+	fprintf(fp, "rw: %s\n", prog_opts.rw == READ ? "READ" :
+		prog_opts.rw == WRITE ? "WRITE" : "RW");
+	fprintf(fp, "Num devices: %d\n", prog_opts.num_devices);
+	for (i = 0; i < prog_opts.num_devices; i++)
+		fprintf(fp, "    Device%d: %s\n", i, prog_opts.devices[i]);
 
 	for (i = 0; i < prog_opts.num_threads; i++) {
 		pid_t pid;
@@ -281,10 +322,9 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	fclose(fp);
 	free(thread);
 	free_devices();
 
 	return 0;
 }
-
-
