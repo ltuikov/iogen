@@ -369,6 +369,7 @@ int do_thread(struct thread_info *thread)
 	fprintf(fp, "Max span: %llu\n", thread->max_span);
 	fprintf(fp, "rw: %s\n", thread->rw == READ ? "READ" :
 		thread->rw == WRITE ? "WRITE" : "RW");
+	fprintf(fp, "Num ios: %lld\n", thread->num_ios);
 	fprintf(fp, "Device: %s\n", thread->device);
 
 	do {
@@ -444,6 +445,7 @@ int main(int argc, char *argv[])
 	fprintf(fp, "Max span: %llu\n", prog_opts.max_span);
 	fprintf(fp, "rw: %s\n", prog_opts.rw == READ ? "READ" :
 		prog_opts.rw == WRITE ? "WRITE" : "RW");
+	fprintf(fp, "Num ios: %lld\n", prog_opts.num_ios);
 	fprintf(fp, "Num devices: %d\n", prog_opts.num_devices);
 	for (i = 0; i < prog_opts.num_devices; i++)
 		fprintf(fp, "    Device%d: %s\n", i, prog_opts.devices[i]);
