@@ -1,3 +1,4 @@
+#define _LARGEFILE64_SOURCE
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -16,6 +17,7 @@ typedef enum { READ, WRITE, RW } rw_t;
 struct thread_info {
 	pid_t	pid;
 	int	index;
+	FILE	*fp;		  /* log output */
 
 	unsigned int seed;
 	int	log_only;
@@ -23,15 +25,18 @@ struct thread_info {
 	unsigned long long max_io;
 	unsigned long long min_span;
 	unsigned long long max_span;
+	long long	num_ios;
 	rw_t	rw;
 
 	char *device;
+
+	int fd;
 };
 
 /* ---------- Get program arguments ---------- */
 
-#define MAX_IO_DEFAULT		(128*1024*1024)
-#define MAX_SPAN_DEFAULT	(1*1024*1024*1024)
+#define MIN_IO_DEFAULT	512
+#define MAX_IO_DEFAULT	(128*1024)
 
 static struct prog_opts {
 	int	seed_set;
@@ -42,7 +47,7 @@ static struct prog_opts {
 	unsigned long long max_io;
 	unsigned long long min_span;
 	unsigned long long max_span;
-	unsigned long long num_ios;
+	long long	num_ios;
 	rw_t	rw;
 	int	num_devices;
 	char	**devices;
@@ -51,10 +56,11 @@ static struct prog_opts {
 	.seed = 0,
 	.log_only = 0,
 	.num_threads = 1,
-	.min_io = 0,
+	.min_io = MIN_IO_DEFAULT,
 	.max_io = MAX_IO_DEFAULT,
 	.min_span = 0,
-	.max_span = MAX_SPAN_DEFAULT,
+	.max_span = 0,
+	.num_ios = -1,
 	.rw = RW,
 	.num_devices = 0,
 	.devices = NULL,
@@ -242,23 +248,84 @@ const struct clparse_opt cmd_opts[] = {
 	{ '\0', "seed", 1, get_seed, "Initial random seed" },
 	{ '\0', "log-only", 0, set_log_only, "Generate logs only" },
 	{ '\0', "num-threads", 1, get_num_threads, "Number of IO threads" },
-	{ '\0', "min-io", 1, get_min_io, "Minimum IO size" },
-	{ '\0', "max-io", 1, get_max_io, "Maximum IO size" },
+	{ '\0', "min-io", 1, get_min_io, "Minimum IO size (default 512)" },
+	{ '\0', "max-io", 1, get_max_io, "Maximum IO size (default 128 KiB)" },
+	{ '\0', "min-span", 1, get_min_span, "Minimum span (default 0)" },
 	{ '\0', "max-span", 1, get_max_span, "Maximum span" },
-	{ '\0', "min-span", 1, get_min_span, "Minimum span" },
 	{ '\0', "rw", 1, get_rw_op, "One of: READ, WRITE, RW" },
-	{ '\0', "num-ios", 1, get_num_ios, "Number of IO ops per thread" },
+	{ '\0', "num-ios", 1, get_num_ios,
+	  "Number of IO ops per thread (default: eternal)" },
 };
 
 #define NUM_OPTIONS	(sizeof(cmd_opts)/sizeof(cmd_opts[0]))
 
 /* ---------- Thread ---------- */
 
+#define RANDOM(_A, _B)	((_A)+(unsigned long long)(((_B)-(_A)+1)*(rand()/(RAND_MAX+1.0))))
+
+int do_io_op(struct thread_info *thread)
+{
+	int res = 0;
+	rw_t rw;
+	void *buf;
+	size_t count;
+	off64_t start;
+
+	if (thread->rw == READ)
+		rw = READ;
+	else if (thread->rw == WRITE)
+		rw = WRITE;
+	else {
+		rw = RANDOM(0, 1);
+	}
+
+	count = RANDOM(thread->min_io, thread->max_io);
+
+	if (count > thread->max_span - thread->min_span) {
+		count = thread->max_span - thread->min_span;
+		start = thread->min_span;
+	} else {
+		start = RANDOM(thread->min_span, thread->max_span-count-1);
+	}
+
+	buf = malloc(count);
+	if (!buf) {
+		fprintf(thread->fp, "Out of memory for buffer for "
+			"rw: %s, offs: %lu, count: %lu\n",
+			rw == READ ? "READ" : rw == WRITE ? "WRITE" : "RW",
+			start, count);
+		return -1;
+	}
+
+	if (!thread->log_only) {
+		if (lseek64(thread->fd, start, SEEK_SET) == -1) {
+			fprintf(thread->fp, "lseek64 error (%s) for "
+				"rw: %s, offs: %lu, count: %lu\n",
+				strerror(errno),
+				rw == READ ? "READ" : rw == WRITE ? "WRITE" : "RW",
+				start, count);
+			return -1;
+		}
+
+		if (rw == READ)
+			res = read(thread->fd, buf, count);
+		else
+			res = write(thread->fd, buf, count);
+	}
+
+	fprintf(thread->fp, "Result: %6d, rw: %-5s, offs: %16lu, count: %6lu\n",
+		res, rw == READ ? "READ" : rw == WRITE ? "WRITE" : "RW",
+		start, count);
+
+	free(buf);
+
+	return res;
+}
+
 int do_thread(struct thread_info *thread)
 {
 	FILE *fp;
 	char thread_name[255];
-	int  fd;
 
 	sprintf(thread_name, "/tmp/iogen_thread.%d", getpid());
 	fp = fopen(thread_name, "w+");
@@ -268,6 +335,7 @@ int do_thread(struct thread_info *thread)
 		exit(1);
 	}
 	setvbuf(fp, NULL, _IONBF, 1);
+	thread->fp = fp;
 
 	fprintf(fp, "Thread: pid: %d\n", getpid());
 	fprintf(fp, "Seed: %u\n", thread->seed);
@@ -275,22 +343,46 @@ int do_thread(struct thread_info *thread)
 	fprintf(fp, "Min io: %llu\n", thread->min_io);
 	fprintf(fp, "Max io: %llu\n", thread->max_io);
 	fprintf(fp, "Min span: %llu\n", thread->min_span);
+
+	if (!thread->log_only) {
+		thread->fd = open(thread->device, thread->rw == READ ? O_RDONLY :
+				  thread->rw == WRITE ? O_WRONLY : O_RDWR);
+		if (thread->fd == -1) {
+			fprintf(fp, "Couldn't open device %s : %s\n", thread->device,
+				strerror(errno));
+			exit(1);
+		}
+
+		if (thread->max_span == 0) {
+			off64_t end = lseek64(thread->fd, 0, SEEK_END);
+
+			if (end == -1 || errno) {
+				fprintf(thread->fp, "Couldn't determine the size of device %s "
+					"since max-span not given\n", thread->device);
+				fprintf(thread->fp, "error: %s\n", strerror(errno));
+				exit(1);
+			}
+
+			thread->max_span = end;
+		}
+	}
 	fprintf(fp, "Max span: %llu\n", thread->max_span);
 	fprintf(fp, "rw: %s\n", thread->rw == READ ? "READ" :
 		thread->rw == WRITE ? "WRITE" : "RW");
 	fprintf(fp, "Device: %s\n", thread->device);
 
-	fd = open(thread->device, thread->rw == READ ? O_RDONLY :
-		  thread->rw == WRITE ? O_WRONLY : O_RDWR);
-	if (fd == -1) {
-		fprintf(fp, "Couldn't open device %s : %s\n", thread->device,
-			strerror(errno));
-		exit(1);
-	}
+	do {
+		do_io_op(thread);
 
-	
+		if (thread->num_ios == -1)
+			;
+		else if (--thread->num_ios <= 0)
+			break;
+	} while (1);
 
-	close(fd);
+	fprintf(fp, "Thread %d done\n", getpid());
+
+	close(thread->fd);
 	fclose(fp);
 	exit(0);
 }
@@ -366,6 +458,7 @@ int main(int argc, char *argv[])
 		thread[i].max_io = prog_opts.max_io;
 		thread[i].min_span = prog_opts.min_span;
 		thread[i].max_span = prog_opts.max_span;
+		thread[i].num_ios = prog_opts.num_ios;
 		thread[i].rw = prog_opts.rw;
 		thread[i].device = prog_opts.devices[i%prog_opts.num_devices];
 
