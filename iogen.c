@@ -37,11 +37,12 @@ struct thread_info {
 
 /* ---------- Get program arguments ---------- */
 
+#define DEFAULT_PARENT_SEED	0x5A33CF
+
 #define MIN_IO_DEFAULT	512
 #define MAX_IO_DEFAULT	(128*1024)
 
 static struct prog_opts {
-	int	seed_set;
 	unsigned int	seed;
 	unsigned	dry_run;
 	unsigned	no_log;
@@ -55,8 +56,7 @@ static struct prog_opts {
 	int	num_devices;
 	char	**devices;
 } prog_opts = {
-	.seed_set = 0,
-	.seed = 0,
+	.seed = DEFAULT_PARENT_SEED,
 	.dry_run = 0,
 	.no_log = 0,
 	.num_threads = 1,
@@ -108,8 +108,6 @@ int get_seed(char *value, void *_opts)
 		fprintf(stderr, "Incorrect seed: %s\n", value);
 		return -1;
 	}
-
-	opts->seed_set = 1;
 
 	return 0;
 }
@@ -442,8 +440,6 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	if (!prog_opts.seed_set)
-		prog_opts.seed = rand();
 	srand48(prog_opts.seed);
 
 	sprintf(parent_name, "/tmp/iogen.%d", getpid());
@@ -474,7 +470,7 @@ int main(int argc, char *argv[])
 		pid_t pid;
 
 		thread[i].index = i;
-		thread[i].seed = rand();
+		thread[i].seed = lrand48();
 		thread[i].dry_run = prog_opts.dry_run;
 		thread[i].no_log = prog_opts.no_log;
 		thread[i].min_io = prog_opts.min_io;
