@@ -21,7 +21,7 @@ struct thread_info {
 	FILE	*fp;		  /* log output */
 
 	unsigned int seed;
-	int	log_only;
+	int	dry_run;
 	unsigned long long min_io;
 	unsigned long long max_io;
 	unsigned long long min_span;
@@ -42,7 +42,7 @@ struct thread_info {
 static struct prog_opts {
 	int	seed_set;
 	unsigned int	seed;
-	unsigned	log_only;
+	unsigned	dry_run;
 	unsigned	num_threads;
 	unsigned long long min_io;
 	unsigned long long max_io;
@@ -55,14 +55,14 @@ static struct prog_opts {
 } prog_opts = {
 	.seed_set = 0,
 	.seed = 0,
-	.log_only = 0,
+	.dry_run = 0,
 	.num_threads = 1,
 	.min_io = MIN_IO_DEFAULT,
 	.max_io = MAX_IO_DEFAULT,
 	.min_span = 0,
 	.max_span = 0,
 	.num_ios = -1,
-	.rw = RW,
+	.rw = READ,
 	.num_devices = 0,
 	.devices = NULL,
 };
@@ -111,11 +111,11 @@ int get_seed(char *value, void *_opts)
 	return 0;
 }
 
-int set_log_only(char *value, void *_opts)
+int set_dry_run(char *value, void *_opts)
 {
 	struct prog_opts *opts = _opts;
 
-	opts->log_only = 1;
+	opts->dry_run = 1;
 	return 0;
 }
 
@@ -247,13 +247,13 @@ int get_num_ios(char *value, void *_opts)
 
 const struct clparse_opt cmd_opts[] = {
 	{ '\0', "seed", 1, get_seed, "Initial random seed" },
-	{ '\0', "log-only", 0, set_log_only, "Generate logs only" },
+	{ '\0', "dry-run", 0, set_dry_run, "Do not actually do IO" },
 	{ '\0', "num-threads", 1, get_num_threads, "Number of IO threads" },
 	{ '\0', "min-io", 1, get_min_io, "Minimum IO size (default 512)" },
 	{ '\0', "max-io", 1, get_max_io, "Maximum IO size (default 128 KiB)" },
 	{ '\0', "min-span", 1, get_min_span, "Minimum span (default 0)" },
 	{ '\0', "max-span", 1, get_max_span, "Maximum span" },
-	{ '\0', "rw", 1, get_rw_op, "One of: READ, WRITE, RW" },
+	{ '\0', "rw", 1, get_rw_op, "One of: READ, WRITE, RW (default: READ)" },
 	{ '\0', "num-ios", 1, get_num_ios,
 	  "Number of IO ops per thread (default: eternal)" },
 };
@@ -298,7 +298,7 @@ int do_io_op(struct thread_info *thread)
 		return -1;
 	}
 
-	if (!thread->log_only) {
+	if (!thread->dry_run) {
 		if (lseek64(thread->fd, start, SEEK_SET) == -1) {
 			fprintf(thread->fp, "lseek64 error (%s) for "
 				"rw: %s, offs: %lu, count: %lu\n",
@@ -340,12 +340,12 @@ int do_thread(struct thread_info *thread)
 
 	fprintf(fp, "Thread: pid: %d\n", getpid());
 	fprintf(fp, "Seed: %u\n", thread->seed);
-	fprintf(fp, "Log only: %d\n", thread->log_only);
+	fprintf(fp, "Dry run: %d\n", thread->dry_run);
 	fprintf(fp, "Min io: %llu\n", thread->min_io);
 	fprintf(fp, "Max io: %llu\n", thread->max_io);
 	fprintf(fp, "Min span: %llu\n", thread->min_span);
 
-	if (!thread->log_only) {
+	if (!thread->dry_run) {
 		thread->fd = open(thread->device, thread->rw == READ ? O_RDONLY :
 				  thread->rw == WRITE ? O_WRONLY : O_RDWR);
 		if (thread->fd == -1) {
@@ -438,7 +438,7 @@ int main(int argc, char *argv[])
 	setvbuf(fp, NULL, _IONBF, 1);
 
 	fprintf(fp, "Seed: %u\n", prog_opts.seed);
-	fprintf(fp, "Log only: %s\n", prog_opts.log_only ? "yes" : "no");
+	fprintf(fp, "Dry run: %s\n", prog_opts.dry_run ? "yes" : "no");
 	fprintf(fp, "Num threads: %d\n", prog_opts.num_threads);
 	fprintf(fp, "Min io: %llu\n", prog_opts.min_io);
 	fprintf(fp, "Max io: %llu\n", prog_opts.max_io);
@@ -456,7 +456,7 @@ int main(int argc, char *argv[])
 
 		thread[i].index = i;
 		thread[i].seed = rand();
-		thread[i].log_only = prog_opts.log_only;
+		thread[i].dry_run = prog_opts.dry_run;
 		thread[i].min_io = prog_opts.min_io;
 		thread[i].max_io = prog_opts.max_io;
 		thread[i].min_span = prog_opts.min_span;
