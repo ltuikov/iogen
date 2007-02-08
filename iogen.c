@@ -262,14 +262,14 @@ const struct clparse_opt cmd_opts[] = {
 	{ '\0', "seed", 1, get_seed, "Initial random seed" },
 	{ '\0', "dry-run", 0, set_dry_run, "Do not actually do IO" },
 	{ '\0', "no-log", 0, set_no_log, "Do not print IO ops log" },
-	{ '\0', "num-threads", 1, get_num_threads, "Number of IO threads" },
+	{ '\0', "num-threads", 1, get_num_threads, "Number of IO threads (default 1)" },
 	{ '\0', "min-io", 1, get_min_io, "Minimum IO size (default 512)" },
 	{ '\0', "max-io", 1, get_max_io, "Maximum IO size (default 128 KiB)" },
 	{ '\0', "min-span", 1, get_min_span, "Minimum span (default 0)" },
-	{ '\0', "max-span", 1, get_max_span, "Maximum span" },
+	{ '\0', "max-span", 1, get_max_span, "Maximum span (default device size)" },
 	{ '\0', "rw", 1, get_rw_op, "One of: READ, WRITE, RW (default: READ)" },
 	{ '\0', "num-ios", 1, get_num_ios,
-	  "Number of IO ops per thread (default: eternal)" },
+	  "Number of IO ops per thread (default: infinite)" },
 };
 
 #define NUM_OPTIONS	(sizeof(cmd_opts)/sizeof(cmd_opts[0]))
