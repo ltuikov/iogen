@@ -1,4 +1,6 @@
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <wait.h>
 #include <errno.h>
@@ -40,6 +42,7 @@ static struct prog_opts {
 	unsigned long long max_io;
 	unsigned long long min_span;
 	unsigned long long max_span;
+	unsigned long long num_ios;
 	rw_t	rw;
 	int	num_devices;
 	char	**devices;
@@ -221,6 +224,20 @@ int get_rw_op(char *value, void *_opts)
 	return 0;
 }
 
+int get_num_ios(char *value, void *_opts)
+{
+	struct prog_opts *opts = _opts;
+	int res;
+
+	res = get_ull_value(value, &opts->num_ios);
+	if (res) {
+		fprintf(stderr, "Incorrect num_ios: %s\n", value);
+		return -1;
+	}
+
+	return 0;
+}
+
 const struct clparse_opt cmd_opts[] = {
 	{ '\0', "seed", 1, get_seed, "Initial random seed" },
 	{ '\0', "log-only", 0, set_log_only, "Generate logs only" },
@@ -230,6 +247,7 @@ const struct clparse_opt cmd_opts[] = {
 	{ '\0', "max-span", 1, get_max_span, "Maximum span" },
 	{ '\0', "min-span", 1, get_min_span, "Minimum span" },
 	{ '\0', "rw", 1, get_rw_op, "One of: READ, WRITE, RW" },
+	{ '\0', "num-ios", 1, get_num_ios, "Number of IO ops per thread" },
 };
 
 #define NUM_OPTIONS	(sizeof(cmd_opts)/sizeof(cmd_opts[0]))
@@ -240,6 +258,7 @@ int do_thread(struct thread_info *thread)
 {
 	FILE *fp;
 	char thread_name[255];
+	int  fd;
 
 	sprintf(thread_name, "/tmp/iogen_thread.%d", getpid());
 	fp = fopen(thread_name, "w+");
@@ -261,6 +280,17 @@ int do_thread(struct thread_info *thread)
 		thread->rw == WRITE ? "WRITE" : "RW");
 	fprintf(fp, "Device: %s\n", thread->device);
 
+	fd = open(thread->device, thread->rw == READ ? O_RDONLY :
+		  thread->rw == WRITE ? O_WRONLY : O_RDWR);
+	if (fd == -1) {
+		fprintf(fp, "Couldn't open device %s : %s\n", thread->device,
+			strerror(errno));
+		exit(1);
+	}
+
+	
+
+	close(fd);
 	fclose(fp);
 	exit(0);
 }
