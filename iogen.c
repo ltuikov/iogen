@@ -400,7 +400,8 @@ int do_thread(struct thread_info *thread)
 
 	fprintf(fp, "Thread %d done\n", getpid());
 
-	close(thread->fd);
+	if (!thread->dry_run)
+		close(thread->fd);
 	fclose(fp);
 	exit(0);
 }
