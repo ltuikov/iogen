@@ -418,6 +418,9 @@ int main(int argc, char *argv[])
 	res = cl_get_prog_opts(argc, argv, cmd_opts, NUM_OPTIONS, &prog_opts,
 			       &index_last, 0);
 	if (res) {
+		fprintf(stderr,
+			"Usage: iogen [options] <device> <device> ...\n");
+		fprintf(stderr, "Options:\n");
 		cl_print_opts_help(cmd_opts, NUM_OPTIONS);
 		exit(1);
 	}
