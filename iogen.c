@@ -30,7 +30,10 @@ struct thread_info {
 	long long	num_ios;
 	rw_t	rw;
 
-	char *device;
+	char	*device;
+
+	int	big_buf;
+	char	*buf;
 
 	int fd;
 };
@@ -39,8 +42,9 @@ struct thread_info {
 
 #define DEFAULT_PARENT_SEED	0x5A33CF
 
-#define MIN_IO_DEFAULT	512
-#define MAX_IO_DEFAULT	(128*1024)
+#define MIN_IO_DEFAULT		512
+#define MAX_IO_DEFAULT		(128*1024)
+#define SMALL_BUF_LIMIT 	MAX_IO_DEFAULT
 
 static struct prog_opts {
 	unsigned int	seed;
@@ -301,7 +305,11 @@ int do_io_op(struct thread_info *thread)
 		start = RANDOM(thread->min_span, thread->max_span-count-1);
 	}
 
-	buf = malloc(count);
+	if (thread->big_buf)
+		buf = malloc(count);
+	else
+		buf = thread->buf;
+
 	if (!buf) {
 		fprintf(thread->fp, "Out of memory for buffer for "
 			"rw: %s, offs: %lu, count: %lu\n",
@@ -332,7 +340,8 @@ int do_io_op(struct thread_info *thread)
 			start, count);
 	}
 
-	free(buf);
+	if (thread->big_buf)
+		free(buf);
 
 	return res;
 }
@@ -389,6 +398,16 @@ int do_thread(struct thread_info *thread)
 	fprintf(fp, "Num ios: %lld\n", thread->num_ios);
 	fprintf(fp, "Device: %s\n", thread->device);
 
+	if (thread->max_io <= SMALL_BUF_LIMIT) {
+		thread->big_buf = 0;
+		thread->buf = malloc(thread->max_io);
+
+		if (!thread->buf) {
+			fprintf(fp, "Couldn't allocate buffer of size %llu\n", thread->max_io);
+			exit(1);
+		}
+	}
+
 	do {
 		do_io_op(thread);
 
@@ -397,6 +416,9 @@ int do_thread(struct thread_info *thread)
 		else if (--thread->num_ios <= 0)
 			break;
 	} while (1);
+
+	if (!thread->big_buf)
+		free(thread->buf);
 
 	fprintf(fp, "Thread %d done\n", getpid());
 
@@ -443,6 +465,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Out of memory\n");
 		exit(1);
 	}
+	memset(thread, 0, prog_opts.num_threads * sizeof(*thread));
 
 	srand48(prog_opts.seed);
 
@@ -484,6 +507,8 @@ int main(int argc, char *argv[])
 		thread[i].num_ios = prog_opts.num_ios;
 		thread[i].rw = prog_opts.rw;
 		thread[i].device = prog_opts.devices[i%prog_opts.num_devices];
+		thread[i].big_buf = 0;
+		thread[i].buf = NULL;
 
 		if ((pid = fork()) == 0) {
 			/* child, never returns */
