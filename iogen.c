@@ -35,6 +35,11 @@ struct thread_info {
 	int	big_buf;
 	char	*buf;
 
+	unsigned fixed;
+	unsigned seq;
+
+	unsigned long long last_start;
+
 	int fd;
 };
 
@@ -59,6 +64,8 @@ static struct prog_opts {
 	rw_t	rw;
 	int	num_devices;
 	char	**devices;
+	unsigned long long fixed;
+	unsigned long long seq;
 } prog_opts = {
 	.seed = DEFAULT_PARENT_SEED,
 	.dry_run = 0,
@@ -72,6 +79,8 @@ static struct prog_opts {
 	.rw = READ,
 	.num_devices = 0,
 	.devices = NULL,
+	.fixed = 0,
+	.seq = 0,
 };
 	
 static int get_ull_value(char *str, unsigned long long *val)
@@ -260,6 +269,29 @@ int set_io_log(char *value, void *_opts)
 	return 0;
 }
 
+int get_fixed(char *value, void *_opts)
+{
+	struct prog_opts *opts = _opts;
+	int res;
+
+	res = get_ull_value(value, &opts->fixed);
+	if (res) {
+		fprintf(stderr, "Incorrect fixed parameter: %s\n", value);
+		return -1;
+	}
+
+	return 0;
+}
+
+int set_seq(char *value, void *_opts)
+{
+	struct prog_opts *opts = _opts;
+
+	opts->seq = 1;
+
+	return 0;
+}
+
 const struct clparse_opt cmd_opts[] = {
 	{ '\0', "seed", 1, get_seed, "Initial random seed" },
 	{ '\0', "dry-run", 0, set_dry_run, "Do not actually do IO" },
@@ -272,6 +304,9 @@ const struct clparse_opt cmd_opts[] = {
 	{ '\0', "rw", 1, get_rw_op, "One of: READ, WRITE, RW (default: READ)" },
 	{ '\0', "num-ios", 1, get_num_ios,
 	  "Number of IO ops per thread (default: infinite)" },
+	{ '\0', "fixed", 1, get_fixed,
+	  "IO size is fixed at that number, i.e. not random\n" },
+	{ '\0', "seq", 1, set_seq, "Do sequential IO, i.e. not random" },
 };
 
 #define NUM_OPTIONS	(sizeof(cmd_opts)/sizeof(cmd_opts[0]))
@@ -296,14 +331,16 @@ int do_io_op(struct thread_info *thread)
 		rw = RANDOM(0, 1);
 	}
 
-	count = RANDOM(thread->min_io, thread->max_io);
+	if (thread->fixed)
+		count = thread->fixed;
+	else
+		count = RANDOM(thread->min_io, thread->max_io);
 
-	if (count > thread->max_span - thread->min_span) {
-		count = thread->max_span - thread->min_span;
-		start = thread->min_span;
-	} else {
+	if (thread->seq) {
+		start = thread->last_start + count;
+		thread->last_start = start;
+	} else
 		start = RANDOM(thread->min_span, thread->max_span-count-1);
-	}
 
 	if (thread->big_buf)
 		buf = malloc(count);
@@ -509,6 +546,9 @@ int main(int argc, char *argv[])
 		thread[i].device = prog_opts.devices[i%prog_opts.num_devices];
 		thread[i].big_buf = 0;
 		thread[i].buf = NULL;
+		thread[i].fixed = prog_opts.fixed;
+		thread[i].seq = prog_opts.seq;
+		thread[i].last_start = 0;
 
 		if ((pid = fork()) == 0) {
 			/* child, never returns */
