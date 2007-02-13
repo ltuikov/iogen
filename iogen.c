@@ -385,6 +385,16 @@ int do_io_op(struct thread_info *thread)
 	return res;
 }
 
+FILE *thread_fp;
+
+void sighandler_thread(int sig)
+{
+	fprintf(thread_fp, "Thread %d terminated by signal %d\n",
+		getpid(), sig);
+	signal(SIGINT, SIG_DFL);
+	kill(getpid(), sig);
+}
+
 int do_thread(struct thread_info *thread)
 {
 	FILE *fp;
@@ -399,7 +409,10 @@ int do_thread(struct thread_info *thread)
 	}
 	setvbuf(fp, NULL, _IONBF, 1);
 	thread->fp = fp;
+	thread_fp = fp;
 	srand48(thread->seed);
+
+	signal(SIGINT, sighandler_thread);
 
 	fprintf(fp, "Thread: pid: %d\n", getpid());
 	fprintf(fp, "Seed: %u\n", thread->seed);
