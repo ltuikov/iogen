@@ -391,7 +391,7 @@ void sighandler_thread(int sig)
 {
 	fprintf(thread_fp, "Thread %d terminated by signal %d\n",
 		getpid(), sig);
-	signal(SIGINT, SIG_DFL);
+	signal(sig, SIG_DFL);
 	kill(getpid(), sig);
 }
 
@@ -412,7 +412,15 @@ int do_thread(struct thread_info *thread)
 	thread_fp = fp;
 	srand48(thread->seed);
 
+	/* Catch and report terminating signals, then
+	 * perform their default action (terminate).
+	 */
+	signal(SIGHUP, sighandler_thread);
 	signal(SIGINT, sighandler_thread);
+	signal(SIGINT, sighandler_thread);
+	signal(SIGTERM, sighandler_thread);
+	signal(SIGUSR1, sighandler_thread);
+	signal(SIGUSR2, sighandler_thread);
 
 	fprintf(fp, "Thread: pid: %d\n", getpid());
 	fprintf(fp, "Seed: %u\n", thread->seed);
