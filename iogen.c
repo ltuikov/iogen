@@ -406,6 +406,8 @@ int do_thread(struct thread_info *thread)
 	fprintf(fp, "Min io: %llu\n", thread->min_io);
 	fprintf(fp, "Max io: %llu\n", thread->max_io);
 	fprintf(fp, "Min span: %llu\n", thread->min_span);
+	fprintf(fp, "Fixed: %s\n", thread->fixed ? "yes" : "no");
+	fprintf(fp, "Sequential: %s\n", thread->seq ? "yes" : "no");
 
 	if (!thread->dry_run) {
 		thread->fd = open(thread->device, thread->rw == READ ? O_RDONLY :
@@ -526,6 +528,8 @@ int main(int argc, char *argv[])
 	fprintf(fp, "rw: %s\n", prog_opts.rw == READ ? "READ" :
 		prog_opts.rw == WRITE ? "WRITE" : "RW");
 	fprintf(fp, "Num ios: %lld\n", prog_opts.num_ios);
+	fprintf(fp, "Fixed: %s\n", prog_opts.fixed ? "yes" : "no");
+	fprintf(fp, "Sequential: %s\n", prog_opts.seq ? "yes" : "no");
 	fprintf(fp, "Num devices: %d\n", prog_opts.num_devices);
 	for (i = 0; i < prog_opts.num_devices; i++)
 		fprintf(fp, "    Device%d: %s\n", i, prog_opts.devices[i]);
