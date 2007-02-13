@@ -6,6 +6,7 @@
 #include <wait.h>
 #include <errno.h>
 #include <signal.h>
+#include <time.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -311,6 +312,24 @@ const struct clparse_opt cmd_opts[] = {
 
 #define NUM_OPTIONS	(sizeof(cmd_opts)/sizeof(cmd_opts[0]))
 
+/* ---------- Time ---------- */
+
+void print_time(FILE *fp)
+{
+	time_t t;
+	struct tm tm;
+	char s[100];
+	char *p = s;
+
+	t = time(NULL);
+	gmtime_r(&t, &tm);
+	asctime_r(&tm, s);
+	for ( ; *p && *p != '\n'; p++)
+		;
+	sprintf(p, " UTC");
+	fprintf(fp, "Time: %s\n", s);
+}
+
 /* ---------- Thread ---------- */
 
 #define RANDOM(_A, _B)	((_A)+(unsigned long long)(((_B)-(_A)+1)*drand48()))
@@ -391,6 +410,7 @@ void sighandler_thread(int sig)
 {
 	fprintf(thread_fp, "Thread %d terminated by signal %d\n",
 		getpid(), sig);
+	print_time(thread_fp);
 	signal(sig, SIG_DFL);
 	kill(getpid(), sig);
 }
@@ -422,6 +442,7 @@ int do_thread(struct thread_info *thread)
 	signal(SIGUSR1, sighandler_thread);
 	signal(SIGUSR2, sighandler_thread);
 
+	print_time(fp);
 	fprintf(fp, "Thread: pid: %d\n", getpid());
 	fprintf(fp, "Seed: %u\n", thread->seed);
 	fprintf(fp, "Dry run: %d\n", thread->dry_run);
@@ -486,6 +507,7 @@ int do_thread(struct thread_info *thread)
 
 	if (!thread->dry_run)
 		close(thread->fd);
+	print_time(fp);
 	fclose(fp);
 	exit(0);
 }
@@ -540,6 +562,8 @@ int main(int argc, char *argv[])
 	}
 	setvbuf(fp, NULL, _IONBF, 1);
 
+	print_time(fp);
+	fprintf(fp, "Parent: pid: %d\n", getpid());
 	fprintf(fp, "Seed: %u\n", prog_opts.seed);
 	fprintf(fp, "Dry run: %s\n", prog_opts.dry_run ? "yes" : "no");
 	fprintf(fp, "IO log: %s\n", prog_opts.io_log ? "yes" : "log");
@@ -607,6 +631,7 @@ int main(int argc, char *argv[])
 		}
 	} while (--prog_opts.num_threads > 0);
 
+	print_time(fp);
 	fclose(fp);
 	free(thread);
 	free_devices();
