@@ -338,6 +338,8 @@ int do_io_op(struct thread_info *thread)
 
 	if (thread->seq) {
 		start = thread->last_start + count;
+		if (start >= thread->max_span)
+			start = 0;
 		thread->last_start = start;
 	} else
 		start = RANDOM(thread->min_span, thread->max_span-count-1);
