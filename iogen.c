@@ -306,7 +306,7 @@ const struct clparse_opt cmd_opts[] = {
 	  "Number of IO ops per thread (default: infinite)" },
 	{ '\0', "fixed", 1, get_fixed,
 	  "IO size is fixed at that number, i.e. not random\n" },
-	{ '\0', "seq", 1, set_seq, "Do sequential IO, i.e. not random" },
+	{ '\0', "seq", 0, set_seq, "Do sequential IO, i.e. not random" },
 };
 
 #define NUM_OPTIONS	(sizeof(cmd_opts)/sizeof(cmd_opts[0]))
