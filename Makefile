@@ -2,12 +2,16 @@ PROG=iogen
 SOURCES=iogen.c
 
 CFLAGS=-g -Wall -static -I../clparse -L../clparse
-LIBS=../clparse/clparse.o
+CLPARSE_DIR=../clparse
+CLPARSE_LIB=$(CLPARSE_DIR)/clparse.o
 
 .PHONY: clean
 
-$(PROG): $(SOURCES)
-	$(CC) $(CFLAGS) $(LIBS) $^ -o $@
+$(PROG): $(SOURCES) $(CLPARSE_LIB)
+	$(CC) $(CFLAGS) $^ -o $@
+
+$(CLPARSE_LIB):
+	$(MAKE) -C ../clparse
 
 clean:
 	$(RM) $(PROG) *~
