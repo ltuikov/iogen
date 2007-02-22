@@ -1,9 +1,9 @@
 PROG=iogen
 SOURCES=iogen.c
 
-CFLAGS=-g -Wall -static -I../clparse -L../clparse
 CLPARSE_DIR=../clparse
 CLPARSE_LIB=$(CLPARSE_DIR)/clparse.o
+CFLAGS=-g -Wall -static -I$(CLPARSE_DIR) -L$(CLPARSE_DIR)
 
 .PHONY: clean
 
