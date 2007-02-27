@@ -437,7 +437,6 @@ int do_thread(struct thread_info *thread)
 	 */
 	signal(SIGHUP, sighandler_thread);
 	signal(SIGINT, sighandler_thread);
-	signal(SIGINT, sighandler_thread);
 	signal(SIGTERM, sighandler_thread);
 	signal(SIGUSR1, sighandler_thread);
 	signal(SIGUSR2, sighandler_thread);
