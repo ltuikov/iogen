@@ -294,7 +294,7 @@ int set_seq(char *value, void *_opts)
 }
 
 const struct clparse_opt cmd_opts[] = {
-	{ '\0', "seed", 1, get_seed, "Initial random seed" },
+	{ '\0', "seed", 1, get_seed, "Initial random seed, default 0x5A33CF" },
 	{ '\0', "dry-run", 0, set_dry_run, "Do not actually do IO" },
 	{ '\0', "io-log", 0, set_io_log, "Print IO ops log" },
 	{ '\0', "num-threads", 1, get_num_threads, "Number of IO threads (default 1)" },
@@ -443,7 +443,7 @@ int do_thread(struct thread_info *thread)
 	fprintf(fp, "Thread: pid: %d\n", getpid());
 	fprintf(fp, "Seed: %u\n", thread->seed);
 	fprintf(fp, "Dry run: %d\n", thread->dry_run);
-	fprintf(fp, "IO log: %s\n", thread->io_log ? "yes" : "log");
+	fprintf(fp, "IO log: %s\n", thread->io_log ? "yes" : "no");
 	fprintf(fp, "Min io: %llu\n", thread->min_io);
 	fprintf(fp, "Max io: %llu\n", thread->max_io);
 	fprintf(fp, "Min span: %llu\n", thread->min_span);
@@ -563,7 +563,7 @@ int main(int argc, char *argv[])
 	fprintf(fp, "Parent: pid: %d\n", getpid());
 	fprintf(fp, "Seed: %u\n", prog_opts.seed);
 	fprintf(fp, "Dry run: %s\n", prog_opts.dry_run ? "yes" : "no");
-	fprintf(fp, "IO log: %s\n", prog_opts.io_log ? "yes" : "log");
+	fprintf(fp, "IO log: %s\n", prog_opts.io_log ? "yes" : "no");
 	fprintf(fp, "Num threads: %d\n", prog_opts.num_threads);
 	fprintf(fp, "Min io: %llu\n", prog_opts.min_io);
 	fprintf(fp, "Max io: %llu\n", prog_opts.max_io);
