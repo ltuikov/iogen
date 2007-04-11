@@ -36,7 +36,7 @@ struct thread_info {
 	int	big_buf;
 	char	*buf;
 
-	unsigned fixed;
+	unsigned long long fixed;
 	unsigned seq;
 
 	unsigned long long last_start;
@@ -280,6 +280,8 @@ int get_fixed(char *value, void *_opts)
 		fprintf(stderr, "Incorrect fixed parameter: %s\n", value);
 		return -1;
 	}
+	opts->min_io = opts->fixed;
+	opts->max_io = opts->fixed;
 
 	return 0;
 }
@@ -305,7 +307,7 @@ const struct clparse_opt cmd_opts[] = {
 	{ '\0', "max-span", 1, get_max_span, "Maximum span (default device size)" },
 	{ '\0', "seq", 0, set_seq, "Do sequential IO, i.e. not random" },
 	{ '\0', "rw", 1, get_rw_op, "One of: READ, WRITE, RW (default: READ)" },
-	{ '\0', "num-ios", 1, get_num_ios, "Number of IO ops per thread (default: infinite)" },
+	{ '\0', "num-ios", 1, get_num_ios, "Number of IO ops per thread (default: -1, infinite)" },
 };
 
 #define NUM_OPTIONS	(sizeof(cmd_opts)/sizeof(cmd_opts[0]))
