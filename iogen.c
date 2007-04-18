@@ -392,10 +392,10 @@ int do_io_op(struct thread_info *thread)
 			res = write(thread->fd, buf, count);
 	}
 
-	if (thread->io_log) {
-		fprintf(thread->fp, "Result: %6d, rw: %-5s, offs: %16lu, count: %6lu\n",
-			res, rw == READ ? "READ" : rw == WRITE ? "WRITE" : "RW",
-			start, count);
+	if (thread->io_log || res == -1) {
+		fprintf(thread->fp, "rw: %-5s, offs: %16lu, count: %6lu, error: %d: %s\n",
+			rw == READ ? "READ" : rw == WRITE ? "WRITE" : "RW",
+			start, count, errno, strerror(errno));
 	}
 
 	if (thread->big_buf)
@@ -491,7 +491,11 @@ int do_thread(struct thread_info *thread)
 	}
 
 	do {
-		do_io_op(thread);
+		int res;
+
+		res = do_io_op(thread);
+		if (res == -1)
+			break;
 
 		if (thread->num_ios == -1)
 			;
