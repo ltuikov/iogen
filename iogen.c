@@ -14,6 +14,8 @@
 #include <string.h>
 #include "clparse.h"
 
+#define PRINT_VERSION -1000
+
 typedef enum { READ, WRITE, RW } rw_t;
 
 struct thread_info {
@@ -295,6 +297,11 @@ int set_seq(char *value, void *_opts)
 	return 0;
 }
 
+int print_version(char *value, void *_opts)
+{
+	return PRINT_VERSION;
+}
+
 const struct clparse_opt cmd_opts[] = {
 	{ '\0', "seed", 1, get_seed, "Initial random seed, default 0x5A33CF" },
 	{ '\0', "dry-run", 0, set_dry_run, "Do not actually do IO" },
@@ -308,6 +315,7 @@ const struct clparse_opt cmd_opts[] = {
 	{ '\0', "seq", 0, set_seq, "Do sequential IO, i.e. not random" },
 	{ '\0', "rw", 1, get_rw_op, "One of: READ, WRITE, RW (default: READ)" },
 	{ '\0', "num-ios", 1, get_num_ios, "Number of IO ops per thread (default: -1, infinite)" },
+	{ 'v', "version", 0, print_version, "Print the version and this help to stdout" },
 };
 
 #define NUM_OPTIONS	(sizeof(cmd_opts)/sizeof(cmd_opts[0]))
@@ -519,6 +527,7 @@ int do_thread(struct thread_info *thread)
 
 int main(int argc, char *argv[])
 {
+	extern char *iogen_version;
 	int res, i;
 	int index_last = -1;
 	struct thread_info *thread;
@@ -526,13 +535,20 @@ int main(int argc, char *argv[])
 	FILE *fp;
 
 	res = cl_get_prog_opts(argc, argv, cmd_opts, NUM_OPTIONS, &prog_opts,
-			       &index_last, 0);
+			       &index_last, SILENT, stderr);
 	if (res) {
-		fprintf(stderr,
+		FILE *out = stderr;
+
+		if (res == PRINT_VERSION)
+			out = stdout;
+
+		fprintf(out,
 			"Usage: iogen [options] <device> <device> ...\n");
-		fprintf(stderr, "Options:\n");
-		cl_print_opts_help(cmd_opts, NUM_OPTIONS);
-		exit(1);
+		fprintf(out, "Options:\n");
+		cl_print_opts_help(cmd_opts, NUM_OPTIONS, out);
+		fprintf(out, "Version: %s\n", iogen_version);
+
+		exit(res == PRINT_VERSION ? 0 : 1);
 	}
 
 	if (index_last == -1 || index_last >= argc) {
