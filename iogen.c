@@ -12,11 +12,22 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+#include <stdint.h>
 #include "clparse.h"
 
 #define PRINT_VERSION -1000
 
 typedef enum { READ, WRITE, RW } rw_t;
+
+struct thread_stats {
+	/* Bytes */
+	uint64_t	bytes_read;
+	uint64_t	bytes_written;
+
+	/* IOP */
+	uint64_t	read_iops;
+	uint64_t	write_iops;
+};
 
 struct thread_info {
 	pid_t	pid;
@@ -37,6 +48,8 @@ struct thread_info {
 
 	int	big_buf;
 	char	*buf;
+
+	struct thread_stats  stats;
 
 	unsigned long long fixed;
 	unsigned seq;
@@ -394,10 +407,19 @@ int do_io_op(struct thread_info *thread)
 			return -1;
 		}
 
-		if (rw == READ)
+		if (rw == READ) {
 			res = read(thread->fd, buf, count);
-		else
+			if (res > 0) {
+				thread->stats.bytes_read += res;
+				thread->stats.read_iops++;
+			}
+		} else {
 			res = write(thread->fd, buf, count);
+			if (res > 0) {
+				thread->stats.bytes_written += res;
+				thread->stats.write_iops++;
+			}
+		}
 	}
 
 	if (thread->io_log || res == -1) {
@@ -412,12 +434,25 @@ int do_io_op(struct thread_info *thread)
 	return res;
 }
 
+void print_stats(struct thread_info *th)
+{
+	fprintf(th->fp, "Bytes read:    %16lu\n", th->stats.bytes_read);
+	fprintf(th->fp, "Bytes written: %16lu\n", th->stats.bytes_written);
+	fprintf(th->fp, "Total:         %16lu\n", th->stats.bytes_read +
+		th->stats.bytes_written);
+	fprintf(th->fp, "Read IOPs:     %8lu\n", th->stats.read_iops);
+	fprintf(th->fp, "Write IOPs:    %8lu\n", th->stats.write_iops);
+	fprintf(th->fp, "Total:         %8lu\n", th->stats.read_iops +
+		th->stats.write_iops);
+}
+
 struct thread_info *this;
 
 void sighandler_thread(int sig)
 {
 	fprintf(this->fp, "Thread %d terminated by signal %d\n",
 		getpid(), sig);
+	print_stats(this);
 	print_time(this->fp);
 	signal(sig, SIG_DFL);
 	kill(getpid(), sig);
@@ -518,6 +553,7 @@ int do_thread(struct thread_info *thread)
 
 	if (!thread->dry_run)
 		close(thread->fd);
+	print_stats(thread);
 	print_time(fp);
 	fclose(fp);
 	exit(0);
