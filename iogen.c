@@ -54,7 +54,7 @@ struct thread_info {
 	unsigned long long fixed;
 	unsigned seq;
 
-	unsigned long long last_start;
+	unsigned long long last_end;
 
 	int fd;
 };
@@ -377,10 +377,10 @@ int do_io_op(struct thread_info *thread)
 		count = RANDOM(thread->min_io, thread->max_io);
 
 	if (thread->seq) {
-		start = thread->last_start + count;
+		start = thread->last_end;
 		if (start >= thread->max_span)
 			start = 0;
-		thread->last_start = start;
+		thread->last_end = start + count;
 	} else
 		start = RANDOM(thread->min_span, thread->max_span-count-1);
 
@@ -650,11 +650,8 @@ int main(int argc, char *argv[])
 		thread[i].num_ios = prog_opts.num_ios;
 		thread[i].rw = prog_opts.rw;
 		thread[i].device = prog_opts.devices[i%prog_opts.num_devices];
-		thread[i].big_buf = 0;
-		thread[i].buf = NULL;
 		thread[i].fixed = prog_opts.fixed;
 		thread[i].seq = prog_opts.seq;
-		thread[i].last_start = 0;
 
 		if ((pid = fork()) == 0) {
 			/* child, never returns */
