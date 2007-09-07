@@ -61,7 +61,7 @@ struct thread_info {
 
 /* ---------- Get program arguments ---------- */
 
-#define DEFAULT_PARENT_SEED	0x5A33CF
+#define DEFAULT_PARENT_SEED	0x5A33D9
 
 #define MIN_IO_DEFAULT		512
 #define MAX_IO_DEFAULT		(128*1024)
