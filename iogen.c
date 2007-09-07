@@ -412,13 +412,13 @@ int do_io_op(struct thread_info *thread)
 	return res;
 }
 
-FILE *thread_fp;
+struct thread_info *this;
 
 void sighandler_thread(int sig)
 {
-	fprintf(thread_fp, "Thread %d terminated by signal %d\n",
+	fprintf(this->fp, "Thread %d terminated by signal %d\n",
 		getpid(), sig);
-	print_time(thread_fp);
+	print_time(this->fp);
 	signal(sig, SIG_DFL);
 	kill(getpid(), sig);
 }
@@ -428,6 +428,7 @@ int do_thread(struct thread_info *thread)
 	FILE *fp;
 	char thread_name[255];
 
+	this = thread;
 	sprintf(thread_name, "/tmp/iogen_thread.%d", getpid());
 	fp = fopen(thread_name, "w+");
 	if (fp == NULL) {
@@ -437,7 +438,6 @@ int do_thread(struct thread_info *thread)
 	}
 	setvbuf(fp, NULL, _IONBF, 1);
 	thread->fp = fp;
-	thread_fp = fp;
 	srand48(thread->seed);
 
 	/* Catch and report terminating signals, then
