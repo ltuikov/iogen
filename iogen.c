@@ -17,6 +17,8 @@
 
 #define PRINT_VERSION -1000
 
+extern char *iogen_version;
+
 typedef enum { READ, WRITE, RW } rw_t;
 
 struct thread_stats {
@@ -484,6 +486,7 @@ int do_thread(struct thread_info *thread)
 	signal(SIGUSR1, sighandler_thread);
 	signal(SIGUSR2, sighandler_thread);
 
+	fprintf(fp, "iogen, version: %s\n", iogen_version);
 	print_time(fp);
 	fprintf(fp, "Thread: pid: %d\n", getpid());
 	fprintf(fp, "Seed: %u\n", thread->seed);
@@ -563,7 +566,6 @@ int do_thread(struct thread_info *thread)
 
 int main(int argc, char *argv[])
 {
-	extern char *iogen_version;
 	int res, i;
 	int index_last = -1;
 	struct thread_info *thread;
@@ -617,6 +619,7 @@ int main(int argc, char *argv[])
 	}
 	setvbuf(fp, NULL, _IONBF, 1);
 
+	fprintf(fp, "iogen, version: %s\n", iogen_version);
 	print_time(fp);
 	fprintf(fp, "Parent: pid: %d\n", getpid());
 	fprintf(fp, "Seed: %u\n", prog_opts.seed);
