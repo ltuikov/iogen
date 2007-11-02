@@ -330,6 +330,7 @@ const struct clparse_opt cmd_opts[] = {
 	{ '\0', "seq", 0, set_seq, "Do sequential IO, i.e. not random" },
 	{ '\0', "rw", 1, get_rw_op, "One of: READ, WRITE, RW (default: READ)" },
 	{ '\0', "num-ios", 1, get_num_ios, "Number of IO ops per thread (default: -1, infinite)" },
+	{ 'h', "help", 0, print_version, "Print the version and this help to stdout" },
 	{ 'v', "version", 0, print_version, "Print the version and this help to stdout" },
 };
 
