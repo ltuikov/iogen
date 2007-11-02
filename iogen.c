@@ -1,3 +1,38 @@
+/*
+ * Versatile Threaded I/O generator
+ * Copyright (C) 2006, 2007 Luben Tuikov
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+static const char *iogen_license =
+	"Versatile Threaded I/O generator\n"
+	"Copyright (C) 2006, 2007 Luben Tuikov\n"
+	"\n"
+	"This program is free software: you can redistribute it and/or modify\n"
+	"it under the terms of the GNU General Public License as published by\n"
+	"the Free Software Foundation, either version 3 of the License, or\n"
+	"(at your option) any later version.\n"
+	"\n"
+	"This program is distributed in the hope that it will be useful,\n"
+	"but WITHOUT ANY WARRANTY; without even the implied warranty of\n"
+	"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n"
+	"GNU General Public License for more details.\n"
+	"\n"
+	"You should have received a copy of the GNU General Public License\n"
+	"along with this program.  If not, see <http://www.gnu.org/licenses/>.\n";
+
 #define _LARGEFILE64_SOURCE
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -16,6 +51,7 @@
 #include "clparse.h"
 
 #define PRINT_VERSION -1000
+#define PRINT_LICENSE -1001
 
 extern char *iogen_version;
 
@@ -317,6 +353,11 @@ int print_version(char *value, void *_opts)
 	return PRINT_VERSION;
 }
 
+int print_license(char *value, void *_opts)
+{
+	return PRINT_LICENSE;
+}
+
 const struct clparse_opt cmd_opts[] = {
 	{ '\0', "seed", 1, get_seed, "Initial random seed, default 0x5A33CF" },
 	{ '\0', "dry-run", 0, set_dry_run, "Do not actually do IO" },
@@ -330,6 +371,7 @@ const struct clparse_opt cmd_opts[] = {
 	{ '\0', "seq", 0, set_seq, "Do sequential IO, i.e. not random" },
 	{ '\0', "rw", 1, get_rw_op, "One of: READ, WRITE, RW (default: READ)" },
 	{ '\0', "num-ios", 1, get_num_ios, "Number of IO ops per thread (default: -1, infinite)" },
+	{ 'l', "license", 0, print_license, "Print the license" },
 	{ 'h', "help", 0, print_version, "Print the version and this help to stdout" },
 	{ 'v', "version", 0, print_version, "Print the version and this help to stdout" },
 };
@@ -578,16 +620,21 @@ int main(int argc, char *argv[])
 	if (res) {
 		FILE *out = stderr;
 
-		if (res == PRINT_VERSION)
+		if (res == PRINT_VERSION || res == PRINT_LICENSE)
 			out = stdout;
 
-		fprintf(out,
-			"Usage: iogen [options] <device> <device> ...\n");
-		fprintf(out, "Options:\n");
-		cl_print_opts_help(cmd_opts, NUM_OPTIONS, out);
-		fprintf(out, "Version: %s\n", iogen_version);
+		if (res == PRINT_LICENSE) {
+			fprintf(out, "%s", iogen_license);
+			exit(0);
+		} else {
+			fprintf(out,
+				"Usage: iogen [options] <device> <device> ...\n");
+			fprintf(out, "Options:\n");
+			cl_print_opts_help(cmd_opts, NUM_OPTIONS, out);
+			fprintf(out, "Version: %s\n", iogen_version);
 
-		exit(res == PRINT_VERSION ? 0 : 1);
+			exit(res == PRINT_VERSION ? 0 : 1);
+		}
 	}
 
 	if (index_last == -1 || index_last >= argc) {
