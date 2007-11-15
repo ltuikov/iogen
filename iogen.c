@@ -710,7 +710,8 @@ int main(int argc, char *argv[])
 			do_thread(&thread[i]);
 		} else {
 			thread[i].pid = pid;
-			fprintf(fp, "Thread %d started\n", pid);
+			fprintf(fp, "Thread %d started on ", pid);
+			print_time(fp);
 		}
 	}
 
@@ -726,12 +727,13 @@ int main(int argc, char *argv[])
 
 		if (WIFSIGNALED(status)) {
 			fprintf(fp, "Thread %d terminated by signal %d, "
-				"status %d\n", pid, WTERMSIG(status),
+				"status %d on ", pid, WTERMSIG(status),
 				WEXITSTATUS(status));
 		} else {
-			fprintf(fp, "Thread %d exited with status %d\n", pid,
+			fprintf(fp, "Thread %d exited with status %d on ", pid,
 				WEXITSTATUS(status));
 		}
+		print_time(fp);
 	} while (--prog_opts.num_threads > 0);
 
 	print_time(fp);
