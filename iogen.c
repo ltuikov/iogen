@@ -710,7 +710,7 @@ int main(int argc, char *argv[])
 			do_thread(&thread[i]);
 		} else {
 			thread[i].pid = pid;
-			fprintf(fp, "Thread %d\n", pid);
+			fprintf(fp, "Thread %d started\n", pid);
 		}
 	}
 
