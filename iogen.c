@@ -520,7 +520,7 @@ void wait_for_device(struct thread_info *thread)
 {
 	fprintf(thread->fp, "Device %s disappeared on ", thread->device);
 	print_time(thread->fp);
-	fprintf(thread->fp, "Waiting for device %s to come back on\n",
+	fprintf(thread->fp, "Waiting for device %s to come back on...\n",
 		thread->device);
 
 	close(thread->fd);
@@ -531,7 +531,8 @@ void wait_for_device(struct thread_info *thread)
 				  thread->rw == WRITE ? O_WRONLY : O_RDWR);
 	} while (thread->fd == -1);
 
-	fprintf(thread->fp, "Device %s came back on\n", thread->device);
+	fprintf(thread->fp, "Device %s came back on ", thread->device);
+	print_time(thread->fp);
 }
 
 int do_thread(struct thread_info *thread)
