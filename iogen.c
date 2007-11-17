@@ -83,6 +83,7 @@ struct thread_info {
 	rw_t	rw;
 
 	char	*device;
+	int	restart;
 
 	int	big_buf;
 	char	*buf;
@@ -94,7 +95,7 @@ struct thread_info {
 
 	unsigned long long last_end;
 
-	int fd;
+	int fd;			  /* device */
 };
 
 /* ---------- Get program arguments ---------- */
@@ -120,6 +121,7 @@ static struct prog_opts {
 	char	**devices;
 	unsigned long long fixed;
 	unsigned long long seq;
+	int	restart;
 } prog_opts = {
 	.seed = DEFAULT_PARENT_SEED,
 	.dry_run = 0,
@@ -135,6 +137,7 @@ static struct prog_opts {
 	.devices = NULL,
 	.fixed = 0,
 	.seq = 0,
+	.restart = 0,
 };
 	
 static int get_ull_value(char *str, unsigned long long *val)
@@ -348,6 +351,15 @@ int set_seq(char *value, void *_opts)
 	return 0;
 }
 
+int set_restart(char *value, void *_opts)
+{
+	struct prog_opts *opts = _opts;
+
+	opts->restart = 1;
+
+	return 0;
+}
+
 int print_version(char *value, void *_opts)
 {
 	return PRINT_VERSION;
@@ -371,6 +383,7 @@ const struct clparse_opt cmd_opts[] = {
 	{ '\0', "seq", 0, set_seq, "Do sequential IO, i.e. not random" },
 	{ '\0', "rw", 1, get_rw_op, "One of: READ, WRITE, RW (default: READ)" },
 	{ '\0', "num-ios", 1, get_num_ios, "Number of IO ops per thread (default: -1, infinite)" },
+	{ '\0', "restart", 0, set_restart, "Restart I/O when device reappears" },
 	{ 'l', "license", 0, print_license, "Print the license" },
 	{ 'h', "help", 0, print_version, "Print the version and this help to stdout" },
 	{ 'v', "version", 0, print_version, "Print the version and this help to stdout" },
@@ -503,6 +516,24 @@ void sighandler_thread(int sig)
 	kill(getpid(), sig);
 }
 
+void wait_for_device(struct thread_info *thread)
+{
+	fprintf(thread->fp, "Device %s disappeared on ", thread->device);
+	print_time(thread->fp);
+	fprintf(thread->fp, "Waiting for device %s to come back on\n",
+		thread->device);
+
+	close(thread->fd);
+
+	do {
+		sleep(5);
+		thread->fd = open(thread->device, thread->rw == READ ? O_RDONLY :
+				  thread->rw == WRITE ? O_WRONLY : O_RDWR);
+	} while (thread->fd == -1);
+
+	fprintf(thread->fp, "Device %s came back on\n", thread->device);
+}
+
 int do_thread(struct thread_info *thread)
 {
 	FILE *fp;
@@ -540,6 +571,7 @@ int do_thread(struct thread_info *thread)
 	fprintf(fp, "Min span: %llu\n", thread->min_span);
 	fprintf(fp, "Fixed: %s\n", thread->fixed ? "yes" : "no");
 	fprintf(fp, "Sequential: %s\n", thread->seq ? "yes" : "no");
+	fprintf(fp, "Restart: %s\n", thread->restart ? "yes" : "no");
 
 	if (!thread->dry_run) {
 		thread->fd = open(thread->device, thread->rw == READ ? O_RDONLY :
@@ -583,7 +615,9 @@ int do_thread(struct thread_info *thread)
 		int res;
 
 		res = do_io_op(thread);
-		if (res == -1)
+		if (res == -1 && thread->restart)
+			wait_for_device(thread);
+		else if (res == -1)
 			break;
 
 		if (thread->num_ios == -1)
@@ -684,6 +718,7 @@ int main(int argc, char *argv[])
 	fprintf(fp, "Fixed: %s\n", prog_opts.fixed ? "yes" : "no");
 	fprintf(fp, "Sequential: %s\n", prog_opts.seq ? "yes" : "no");
 	fprintf(fp, "Num devices: %d\n", prog_opts.num_devices);
+	fprintf(fp, "Restart: %s\n", prog_opts.restart ? "yes" : "no");
 	for (i = 0; i < prog_opts.num_devices; i++)
 		fprintf(fp, "    Device%d: %s\n", i, prog_opts.devices[i]);
 
@@ -703,6 +738,7 @@ int main(int argc, char *argv[])
 		thread[i].device = prog_opts.devices[i%prog_opts.num_devices];
 		thread[i].fixed = prog_opts.fixed;
 		thread[i].seq = prog_opts.seq;
+		thread[i].restart = prog_opts.restart;
 
 		if ((pid = fork()) == 0) {
 			/* child, never returns */
