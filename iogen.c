@@ -398,14 +398,10 @@ void print_time(FILE *fp)
 	time_t t;
 	struct tm tm;
 	char s[100];
-	char *p = s;
 
 	t = time(NULL);
-	gmtime_r(&t, &tm);
-	asctime_r(&tm, s);
-	for ( ; *p && *p != '\n'; p++)
-		;
-	sprintf(p, " UTC");
+	localtime_r(&t, &tm); /* gmtime_r(&t, &tm) -- UTC */
+	strftime(s, 100, "%a, %d %b %Y %H:%M:%S %z (%Z)", &tm);
 	fprintf(fp, "Time: %s\n", s);
 }
 
