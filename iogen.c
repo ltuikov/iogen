@@ -50,8 +50,7 @@ static const char *iogen_license =
 #include <stdint.h>
 #include "clparse.h"
 
-#define PRINT_VERSION -1000
-#define PRINT_LICENSE -1001
+#define PRINT_DIAG -1000
 
 extern char *iogen_version;
 
@@ -360,14 +359,24 @@ int set_restart(char *value, void *_opts)
 	return 0;
 }
 
+void print_h(FILE *out);
+
+int print_help(char *value, void *_opts)
+{
+	print_h(stdout);
+	return PRINT_DIAG;
+}
+
 int print_version(char *value, void *_opts)
 {
-	return PRINT_VERSION;
+	fprintf(stdout, "Version: %s\n", iogen_version);
+	return PRINT_DIAG;
 }
 
 int print_license(char *value, void *_opts)
 {
-	return PRINT_LICENSE;
+	fprintf(stdout, "%s", iogen_license);
+	return PRINT_DIAG;
 }
 
 const struct clparse_opt cmd_opts[] = {
@@ -384,12 +393,21 @@ const struct clparse_opt cmd_opts[] = {
 	{ '\0', "rw", 1, get_rw_op, "One of: READ, WRITE, RW (default: READ)" },
 	{ '\0', "num-ios", 1, get_num_ios, "Number of IO ops per thread (default: -1, infinite)" },
 	{ '\0', "restart", 0, set_restart, "Restart I/O when device reappears" },
-	{ 'l', "license", 0, print_license, "Print the license" },
-	{ 'h', "help", 0, print_version, "Print the version and this help to stdout" },
-	{ 'v', "version", 0, print_version, "Print the version and this help to stdout" },
+	{ 'l', "license", 0, print_license, "Print the license to stdout" },
+	{ 'h', "help", 0, print_help, "Print this help and the version to stdout" },
+	{ 'v', "version", 0, print_version, "Print the version to stdout" },
 };
 
 #define NUM_OPTIONS	(sizeof(cmd_opts)/sizeof(cmd_opts[0]))
+
+void print_h(FILE *out)
+{
+	fprintf(out,
+		"Usage: iogen [options] <device> <device> ...\n");
+	fprintf(out, "Options:\n");
+	cl_print_opts_help(cmd_opts, NUM_OPTIONS, out);
+	fprintf(out, "Version: %s\n", iogen_version);
+}
 
 /* ---------- Time ---------- */
 
@@ -648,24 +666,11 @@ int main(int argc, char *argv[])
 
 	res = cl_get_prog_opts(argc, argv, cmd_opts, NUM_OPTIONS, &prog_opts,
 			       &index_last, SILENT, stderr);
-	if (res) {
-		FILE *out = stderr;
-
-		if (res == PRINT_VERSION || res == PRINT_LICENSE)
-			out = stdout;
-
-		if (res == PRINT_LICENSE) {
-			fprintf(out, "%s", iogen_license);
-			exit(0);
-		} else {
-			fprintf(out,
-				"Usage: iogen [options] <device> <device> ...\n");
-			fprintf(out, "Options:\n");
-			cl_print_opts_help(cmd_opts, NUM_OPTIONS, out);
-			fprintf(out, "Version: %s\n", iogen_version);
-
-			exit(res == PRINT_VERSION ? 0 : 1);
-		}
+	if (res == PRINT_DIAG)
+		exit(0);
+	else if (res) {
+		print_h(stderr);
+		exit(res == CL_NO_ARGS ? 0 : res);
 	}
 
 	if (index_last == -1 || index_last >= argc) {
