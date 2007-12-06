@@ -16,7 +16,7 @@ endif
 $(PROG): $(SOURCES) $(CLPARSE_LIB)
 	$(CC) $(CFLAGS) $^ -o $@
 
-$(CLPARSE_LIB):
+$(CLPARSE_LIB): FORCE
 	$(MAKE) -C $(CLPARSE_DIR)
 
 $(VERSION_FILE): FORCE
