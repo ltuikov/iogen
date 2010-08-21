@@ -34,6 +34,7 @@ static const char *iogen_license =
 	"along with this program.  If not, see <http://www.gnu.org/licenses/>.\n";
 
 #define _LARGEFILE64_SOURCE
+#define _GNU_SOURCE
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -82,6 +83,7 @@ struct thread_info {
 	rw_t	rw;
 
 	char	*device;
+	int	o_direct;
 	int	restart;
 
 	int	big_buf;
@@ -95,6 +97,7 @@ struct thread_info {
 	unsigned long long last_end;
 
 	int fd;			  /* device */
+	int open_flags;
 };
 
 /* ---------- Get program arguments ---------- */
@@ -120,6 +123,7 @@ static struct prog_opts {
 	char	**devices;
 	unsigned long long fixed;
 	unsigned long long seq;
+	int     o_direct;
 	int	restart;
 } prog_opts = {
 	.seed = DEFAULT_PARENT_SEED,
@@ -136,6 +140,7 @@ static struct prog_opts {
 	.devices = NULL,
 	.fixed = 0,
 	.seq = 0,
+	.o_direct = 0,
 	.restart = 0,
 };
 	
@@ -350,6 +355,15 @@ int set_seq(char *value, void *_opts)
 	return 0;
 }
 
+int set_odirect(char *value, void *_opts)
+{
+	struct prog_opts *opts = _opts;
+
+	opts->o_direct = 1;
+
+	return 0;
+}
+
 int set_restart(char *value, void *_opts)
 {
 	struct prog_opts *opts = _opts;
@@ -392,6 +406,7 @@ const struct clparse_opt cmd_opts[] = {
 	{ '\0', "seq", 0, set_seq, "Do sequential IO, i.e. not random" },
 	{ '\0', "rw", 1, get_rw_op, "One of: READ, WRITE, RW (default: READ)" },
 	{ '\0', "num-ios", 1, get_num_ios, "Number of IO ops per thread (default: -1, infinite)" },
+	{ '\0', "o_direct", 0, set_odirect, "Set O_DIRECT flag when opening the device, see open(2)." },
 	{ '\0', "restart", 0, set_restart, "Restart I/O when device reappears" },
 	{ 'l', "license", 0, print_license, "Print the license to stdout" },
 	{ 'h', "help", 0, print_help, "Print this help and the version to stdout" },
@@ -541,8 +556,7 @@ void wait_for_device(struct thread_info *thread)
 
 	do {
 		sleep(5);
-		thread->fd = open(thread->device, thread->rw == READ ? O_RDONLY :
-				  thread->rw == WRITE ? O_WRONLY : O_RDWR);
+		thread->fd = open(thread->device, thread->open_flags);
 	} while (thread->fd == -1);
 
 	fprintf(thread->fp, "Device %s came back on ", thread->device);
@@ -586,14 +600,18 @@ int do_thread(struct thread_info *thread)
 	fprintf(fp, "Min span: %llu\n", thread->min_span);
 	fprintf(fp, "Fixed: %s\n", thread->fixed ? "yes" : "no");
 	fprintf(fp, "Sequential: %s\n", thread->seq ? "yes" : "no");
+	fprintf(fp, "O_DIRECT: %s\n", thread->o_direct ? "yes" : "no");
 	fprintf(fp, "Restart: %s\n", thread->restart ? "yes" : "no");
 
 	if (!thread->dry_run) {
-		thread->fd = open(thread->device, thread->rw == READ ? O_RDONLY :
-				  thread->rw == WRITE ? O_WRONLY : O_RDWR);
+		thread->open_flags = thread->rw == READ ? O_RDONLY :
+			thread->rw == WRITE ? O_WRONLY : O_RDWR;
+		if (thread->o_direct)
+			thread->open_flags |= O_DIRECT;
+		thread->fd = open(thread->device, thread->open_flags);
 		if (thread->fd == -1) {
-			fprintf(fp, "Couldn't open device %s : %s\n", thread->device,
-				strerror(errno));
+			fprintf(fp, "Couldn't open device %s : %s\n",
+				thread->device,	strerror(errno));
 			exit(1);
 		}
 
@@ -621,7 +639,8 @@ int do_thread(struct thread_info *thread)
 		thread->buf = malloc(thread->max_io);
 
 		if (!thread->buf) {
-			fprintf(fp, "Couldn't allocate buffer of size %llu\n", thread->max_io);
+			fprintf(fp, "Couldn't allocate a buffer of size %llu\n",
+				thread->max_io);
 			exit(1);
 		}
 	}
@@ -720,6 +739,7 @@ int main(int argc, char *argv[])
 	fprintf(fp, "Fixed: %s\n", prog_opts.fixed ? "yes" : "no");
 	fprintf(fp, "Sequential: %s\n", prog_opts.seq ? "yes" : "no");
 	fprintf(fp, "Num devices: %d\n", prog_opts.num_devices);
+	fprintf(fp, "O_DIRECT: %s\n", prog_opts.o_direct ? "yes" : "no");
 	fprintf(fp, "Restart: %s\n", prog_opts.restart ? "yes" : "no");
 	for (i = 0; i < prog_opts.num_devices; i++)
 		fprintf(fp, "    Device%d: %s\n", i, prog_opts.devices[i]);
@@ -740,6 +760,7 @@ int main(int argc, char *argv[])
 		thread[i].device = prog_opts.devices[i%prog_opts.num_devices];
 		thread[i].fixed = prog_opts.fixed;
 		thread[i].seq = prog_opts.seq;
+		thread[i].o_direct = prog_opts.o_direct;
 		thread[i].restart = prog_opts.restart;
 
 		if ((pid = fork()) == 0) {
