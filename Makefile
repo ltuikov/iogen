@@ -4,11 +4,13 @@ SOURCES=iogen.c $(VERSION_FILE)
 
 CLPARSE_DIR=../clparse
 CLPARSE_LIB=$(CLPARSE_DIR)/clparse.o
-CFLAGS=-g -Wall -static -I$(CLPARSE_DIR) -L$(CLPARSE_DIR)
+#CFLAGS=-g -Wall -static -I$(CLPARSE_DIR) -L$(CLPARSE_DIR)
+CFLAGS=-g -Wall -I$(CLPARSE_DIR) -L$(CLPARSE_DIR)
+LDFLAGS=-lclparse
 
 VERSION:=$(shell git-describe HEAD &> /dev/null)
 ifeq "$(VERSION)" ""
-	VERSION:=$(shell git-rev-parse HEAD)
+	VERSION:=$(shell git rev-parse HEAD)
 endif
 
 .PHONY: clean
