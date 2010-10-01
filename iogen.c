@@ -312,7 +312,7 @@ int get_num_ios(char *value, void *_opts)
 	struct prog_opts *opts = _opts;
 	int res;
 
-	res = get_ull_value(value, &opts->num_ios);
+	res = get_ull_value(value, (unsigned long long *) &opts->num_ios);
 	if (res) {
 		fprintf(stderr, "Incorrect num_ios: %s\n", value);
 		return -1;
