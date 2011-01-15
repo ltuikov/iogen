@@ -18,7 +18,7 @@
 
 static const char *iogen_license =
 	"Versatile Threaded I/O generator\n"
-	"Copyright (C) 2006, 2007, 2008, 2009, 2010 Luben Tuikov\n"
+	"Copyright (C) 2006-2011 Luben Tuikov\n"
 	"\n"
 	"This program is free software: you can redistribute it and/or modify\n"
 	"it under the terms of the GNU General Public License as published by\n"
