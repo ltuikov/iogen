@@ -1,6 +1,6 @@
 /*
  * Versatile Threaded I/O generator
- * Copyright (C) 2006, 2007, 2008, 2009, 2010 Luben Tuikov
+ * Copyright (C) 2006-2011 Luben Tuikov
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
