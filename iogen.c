@@ -84,6 +84,7 @@ struct thread_info {
 
 	char	*device;
 	int	o_direct;
+	int	o_sync;
 	int	restart;
 
 	int	big_buf;
@@ -124,6 +125,7 @@ static struct prog_opts {
 	unsigned long long fixed;
 	unsigned long long seq;
 	int     o_direct;
+	int	o_sync;
 	int	restart;
 } prog_opts = {
 	.seed = DEFAULT_PARENT_SEED,
@@ -141,6 +143,7 @@ static struct prog_opts {
 	.fixed = 0,
 	.seq = 0,
 	.o_direct = 0,
+	.o_sync = 0,
 	.restart = 0,
 };
 	
@@ -364,6 +367,15 @@ int set_odirect(char *value, void *_opts)
 	return 0;
 }
 
+int set_osync(char *value, void *_opts)
+{
+	struct prog_opts *opts = _opts;
+
+	opts->o_sync = 1;
+
+	return 0;
+}
+
 int set_restart(char *value, void *_opts)
 {
 	struct prog_opts *opts = _opts;
@@ -406,7 +418,8 @@ const struct clparse_opt cmd_opts[] = {
 	{ '\0', "seq", 0, set_seq, "Do sequential IO, i.e. not random" },
 	{ '\0', "rw", 1, get_rw_op, "One of: READ, WRITE, RW (default: READ)" },
 	{ '\0', "num-ios", 1, get_num_ios, "Number of IO ops per thread (default: -1, infinite)" },
-	{ '\0', "o_direct", 0, set_odirect, "Set O_DIRECT flag when opening the device, see open(2)." },
+	{ '\0', "o_direct", 0, set_odirect, "Set the O_DIRECT flag when opening the device, see open(2)." },
+	{ '\0', "o_sync", 0, set_osync, "Set the O_SYNC flag when opening the device, see open(2)." },
 	{ '\0', "restart", 0, set_restart, "Restart I/O when device reappears" },
 	{ 'l', "license", 0, print_license, "Print the license to stdout" },
 	{ 'h', "help", 0, print_help, "Print this help and the version to stdout" },
@@ -604,6 +617,7 @@ int do_thread(struct thread_info *thread)
 	fprintf(fp, "Fixed: %s\n", thread->fixed ? "yes" : "no");
 	fprintf(fp, "Sequential: %s\n", thread->seq ? "yes" : "no");
 	fprintf(fp, "O_DIRECT: %s\n", thread->o_direct ? "yes" : "no");
+	fprintf(fp, "O_SYNC: %s\n", thread->o_sync ? "yes" : "no");
 	fprintf(fp, "Restart: %s\n", thread->restart ? "yes" : "no");
 
 	if (!thread->dry_run) {
@@ -611,6 +625,8 @@ int do_thread(struct thread_info *thread)
 			thread->rw == WRITE ? O_WRONLY : O_RDWR;
 		if (thread->o_direct)
 			thread->open_flags |= O_DIRECT;
+		if (thread->o_sync)
+			thread->open_flags |= O_SYNC;
 		thread->fd = open(thread->device, thread->open_flags);
 		if (thread->fd == -1) {
 			fprintf(fp, "Couldn't open device %s : %s\n",
@@ -743,6 +759,7 @@ int main(int argc, char *argv[])
 	fprintf(fp, "Sequential: %s\n", prog_opts.seq ? "yes" : "no");
 	fprintf(fp, "Num devices: %d\n", prog_opts.num_devices);
 	fprintf(fp, "O_DIRECT: %s\n", prog_opts.o_direct ? "yes" : "no");
+	fprintf(fp, "O_SYNC: %s\n", prog_opts.o_sync ? "yes" : "no");
 	fprintf(fp, "Restart: %s\n", prog_opts.restart ? "yes" : "no");
 	for (i = 0; i < prog_opts.num_devices; i++)
 		fprintf(fp, "    Device%d: %s\n", i, prog_opts.devices[i]);
@@ -764,6 +781,7 @@ int main(int argc, char *argv[])
 		thread[i].fixed = prog_opts.fixed;
 		thread[i].seq = prog_opts.seq;
 		thread[i].o_direct = prog_opts.o_direct;
+		thread[i].o_sync = prog_opts.o_sync;
 		thread[i].restart = prog_opts.restart;
 
 		if ((pid = fork()) == 0) {
