@@ -421,6 +421,9 @@ void print_h(FILE *out)
 		"Usage: iogen [options] <device> <device> ...\n");
 	fprintf(out, "Options:\n");
 	cl_print_opts_help(cmd_opts, NUM_OPTIONS, out);
+	fprintf(out, "Append either case 'k', 'm' or 'g' to numerical arguments to multiply by 1 KiB,"
+		" 1 MiB or 1 GiB.\n");
+	fprintf(out, "A single device is assigned to one or more threads.\n");
 	fprintf(out, "Version: %s\n", iogen_version);
 }
 
