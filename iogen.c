@@ -55,7 +55,14 @@ static const char *iogen_license =
 
 extern char *iogen_version;
 
-typedef enum { READ, WRITE, RW } rw_t;
+typedef enum { READ, WRITE, RW, DC } op_t;
+
+static const char *op2str[] = {
+	[READ] = "READ",
+	[WRITE]= "WRITE",
+	[RW]   = "RW",
+	[DC]   = "DC",
+};
 
 struct thread_stats {
 	/* Bytes */
@@ -80,7 +87,7 @@ struct thread_info {
 	unsigned long long min_span;
 	unsigned long long max_span;
 	long long	num_ios;
-	rw_t	rw;
+	op_t	op;
 
 	char	*device;
 	int	o_direct;
@@ -89,6 +96,7 @@ struct thread_info {
 
 	int	big_buf;
 	char	*buf;
+	char    *buf2;
 
 	struct thread_stats  stats;
 
@@ -119,7 +127,7 @@ static struct prog_opts {
 	unsigned long long min_span;
 	unsigned long long max_span;
 	long long	num_ios;
-	rw_t	rw;
+	op_t	op;
 	int	num_devices;
 	char	**devices;
 	unsigned long long fixed;
@@ -137,7 +145,7 @@ static struct prog_opts {
 	.min_span = 0,
 	.max_span = 0,
 	.num_ios = -1,
-	.rw = READ,
+	.op = READ,
 	.num_devices = 0,
 	.devices = NULL,
 	.fixed = 0,
@@ -292,18 +300,20 @@ void free_devices(void)
 	free(prog_opts.devices);
 }
 
-int get_rw_op(char *value, void *_opts)
+int get_op(char *value, void *_opts)
 {
 	struct prog_opts *opts = _opts;
 
 	if (strcmp(value, "READ") == 0)
-		opts->rw = READ;
+		opts->op = READ;
 	else if (strcmp(value, "WRITE") == 0)
-		opts->rw = WRITE;
+		opts->op = WRITE;
 	else if (strcmp(value, "RW") == 0)
-		opts->rw = RW;
+		opts->op = RW;
+	else if (strcmp(value, "DC") == 0)
+		opts->op = DC;
 	else {
-		fprintf(stderr, "Incorrect value for rw: %s\n", value);
+		fprintf(stderr, "Incorrect value for op: %s\n", value);
 		return -1;
 	}
 
@@ -406,7 +416,7 @@ int print_license(char *value, void *_opts)
 }
 
 const struct clparse_opt cmd_opts[] = {
-	{ '\0', "seed", 1, get_seed, "Initial random seed, default 0x5A33CF" },
+	{ '\0', "seed", 1, get_seed, "Initial random seed, default 0x5A33D9" },
 	{ '\0', "dry-run", 0, set_dry_run, "Do not actually do IO" },
 	{ '\0', "io-log", 0, set_io_log, "Print IO ops log" },
 	{ '\0', "num-threads", 1, get_num_threads, "Number of IO threads (default 1)" },
@@ -416,7 +426,7 @@ const struct clparse_opt cmd_opts[] = {
 	{ '\0', "min-span", 1, get_min_span, "Minimum span (default 0)" },
 	{ '\0', "max-span", 1, get_max_span, "Maximum span (default device size)" },
 	{ '\0', "seq", 0, set_seq, "Do sequential IO, i.e. not random" },
-	{ '\0', "rw", 1, get_rw_op, "One of: READ, WRITE, RW (default: READ)" },
+	{ '\0', "op", 1, get_op, "One of: READ, WRITE, RW, DC (default: READ)" },
 	{ '\0', "num-ios", 1, get_num_ios, "Number of IO ops per thread (default: -1, infinite)" },
 	{ '\0', "o_direct", 0, set_odirect, "Set the O_DIRECT flag when opening the device, see open(2)." },
 	{ '\0', "o_sync", 0, set_osync, "Set the O_SYNC flag when opening the device, see open(2)." },
@@ -461,15 +471,17 @@ void print_time(FILE *fp)
 int do_io_op(struct thread_info *thread)
 {
 	int res = 0;
-	rw_t rw;
-	void *buf;
-	size_t count;
+	op_t rw;
+	void *buf = NULL, *buf2 = NULL;
+	size_t count, i;
 	off64_t start;
 
-	if (thread->rw == READ)
+	if (thread->op == READ)
 		rw = READ;
-	else if (thread->rw == WRITE)
+	else if (thread->op == WRITE)
 		rw = WRITE;
+	else if (thread->op == DC)
+		rw = DC;
 	else {
 		rw = RANDOM(0, 1);
 	}
@@ -487,52 +499,106 @@ int do_io_op(struct thread_info *thread)
 	} else
 		start = RANDOM(thread->min_span, thread->max_span-count-1);
 
-	if (thread->big_buf)
+	if (thread->big_buf) {
 		buf = malloc(count);
-	else
+		if (rw == DC)
+			buf2 = malloc(count);
+		else
+			buf2 = buf;
+	} else {
 		buf = thread->buf;
+		if (rw == DC)
+			buf2 = thread->buf2;
+		else
+			buf2 = buf;
+	}
 
-	if (!buf) {
+	if (!buf || !buf2) {
+		if (thread->big_buf) {
+			free(buf);
+			if (rw == DC)
+				free(buf2);
+		}
+
 		fprintf(thread->fp, "Out of memory for buffer for "
-			"rw: %s, offs: %lu, count: %lu\n",
-			rw == READ ? "READ" : rw == WRITE ? "WRITE" : "RW",
-			start, count);
+			"op: %s offs: %lu count: %lu\n",
+			op2str[rw], start, count);
+
 		return -1;
+	}
+
+	if (rw == DC) {
+		uint8_t *p = buf;
+
+		for (i = 0; i < count; i++)
+			p[i] = RANDOM(0, 0xFF);
 	}
 
 	if (!thread->dry_run) {
 		if (lseek64(thread->fd, start, SEEK_SET) == -1) {
 			fprintf(thread->fp, "lseek64 error (%s) for "
-				"rw: %s, offs: %lu, count: %lu\n",
-				strerror(errno),
-				rw == READ ? "READ" : rw == WRITE ? "WRITE" : "RW",
-				start, count);
+				"op: %s offs: %lu count: %lu\n",
+				strerror(errno), op2str[rw], start, count);
 			return -1;
 		}
 
-		if (rw == READ) {
-			res = read(thread->fd, buf, count);
-			if (res > 0) {
-				thread->stats.bytes_read += res;
-				thread->stats.read_iops++;
-			}
-		} else {
+		switch (rw) {
+		case DC:
+		case WRITE:
 			res = write(thread->fd, buf, count);
 			if (res > 0) {
 				thread->stats.bytes_written += res;
 				thread->stats.write_iops++;
 			}
+			if (rw != DC)
+				break;
+			else if (lseek64(thread->fd, start, SEEK_SET) == -1) {
+				fprintf(thread->fp, "lseek64 error (%s) for "
+					"op: %s offs: %lu count: %lu\n",
+					strerror(errno), op2str[rw], start,
+					count);
+				res = -1;
+				goto Out;
+			}
+		case READ:
+			res = read(thread->fd, buf2, count);
+			if (res > 0) {
+				thread->stats.bytes_read += res;
+				thread->stats.read_iops++;
+			}
+			break;
+		default:
+			break;
+		}
+
+		if (rw == DC) {
+			uint8_t *a = buf, *b = buf2;
+
+			for (i = 0; i < count; i++) {
+				if (a[i] != b[i]) {
+					fprintf(thread->fp,
+						"op: %-5s offs: %16lu "
+						"wrote %02Xh read %02Xh\n",
+						op2str[rw], start+i,
+						a[i], b[i]);
+					res = -1;
+					break;
+				}
+			}
 		}
 	}
 
 	if (thread->io_log || res == -1) {
-		fprintf(thread->fp, "rw: %-5s, offs: %16lu, count: %6lu, error: %d: %s\n",
-			rw == READ ? "READ" : rw == WRITE ? "WRITE" : "RW",
-			start, count, errno, strerror(errno));
+		fprintf(thread->fp, "op: %-5s offs: %16lu count: %6lu "
+			"errno: %d: %s\n",
+			op2str[rw], start, count, errno, strerror(errno));
 	}
-
-	if (thread->big_buf)
+ Out:
+	if (thread->big_buf) {
 		free(buf);
+		if (rw == DC)
+			free(buf2);
+	}
 
 	return res;
 }
@@ -621,8 +687,8 @@ int do_thread(struct thread_info *thread)
 	fprintf(fp, "Restart: %s\n", thread->restart ? "yes" : "no");
 
 	if (!thread->dry_run) {
-		thread->open_flags = thread->rw == READ ? O_RDONLY :
-			thread->rw == WRITE ? O_WRONLY : O_RDWR;
+		thread->open_flags = thread->op == READ ? O_RDONLY :
+			thread->op == WRITE ? O_WRONLY : O_RDWR;
 		if (thread->o_direct)
 			thread->open_flags |= O_DIRECT;
 		if (thread->o_sync)
@@ -648,8 +714,7 @@ int do_thread(struct thread_info *thread)
 		}
 	}
 	fprintf(fp, "Max span: %llu\n", thread->max_span);
-	fprintf(fp, "rw: %s\n", thread->rw == READ ? "READ" :
-		thread->rw == WRITE ? "WRITE" : "RW");
+	fprintf(fp, "op: %s\n", op2str[thread->op]);
 	fprintf(fp, "Num ios: %lld\n", thread->num_ios);
 	fprintf(fp, "Device: %s\n", thread->device);
 
@@ -662,6 +727,18 @@ int do_thread(struct thread_info *thread)
 				thread->max_io);
 			exit(1);
 		}
+
+		if (thread->op == DC) {
+			thread->buf2 = malloc(thread->max_io);
+			if (!thread->buf2) {
+				fprintf(fp, "Couldn't allocate a second "
+					"buffer of size %llu\n",
+					thread->max_io);
+				exit(1);
+			}
+		}
+	} else {
+		thread->big_buf = 1;
 	}
 
 	do {
@@ -679,8 +756,11 @@ int do_thread(struct thread_info *thread)
 			break;
 	} while (1);
 
-	if (!thread->big_buf)
+	if (!thread->big_buf) {
 		free(thread->buf);
+		if (thread->op == DC)
+			free(thread->buf2);
+	}
 
 	fprintf(fp, "Thread %d done\n", getpid());
 
@@ -752,8 +832,7 @@ int main(int argc, char *argv[])
 	fprintf(fp, "Max io: %llu\n", prog_opts.max_io);
 	fprintf(fp, "Min span: %llu\n", prog_opts.min_span);
 	fprintf(fp, "Max span: %llu\n", prog_opts.max_span);
-	fprintf(fp, "rw: %s\n", prog_opts.rw == READ ? "READ" :
-		prog_opts.rw == WRITE ? "WRITE" : "RW");
+	fprintf(fp, "op: %s\n", op2str[prog_opts.op]);
 	fprintf(fp, "Num ios: %lld\n", prog_opts.num_ios);
 	fprintf(fp, "Fixed: %s\n", prog_opts.fixed ? "yes" : "no");
 	fprintf(fp, "Sequential: %s\n", prog_opts.seq ? "yes" : "no");
@@ -776,7 +855,7 @@ int main(int argc, char *argv[])
 		thread[i].min_span = prog_opts.min_span;
 		thread[i].max_span = prog_opts.max_span;
 		thread[i].num_ios = prog_opts.num_ios;
-		thread[i].rw = prog_opts.rw;
+		thread[i].op = prog_opts.op;
 		thread[i].device = prog_opts.devices[i%prog_opts.num_devices];
 		thread[i].fixed = prog_opts.fixed;
 		thread[i].seq = prog_opts.seq;
